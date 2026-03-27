@@ -1,0 +1,13 @@
+var R=require("../../chunks/ssr/[turbopack]_runtime.js")("server/app/_not-found/page.js")
+R.c("server/chunks/ssr/GitHub Projects_Revamp-Simple_client_8aedbe5f._.js")
+R.c("server/chunks/ssr/[root-of-the-server]__b6440c7e._.js")
+R.c("server/chunks/ssr/0bb3b_next_dist_esm_build_templates_app-page_defe3ab2.js")
+R.c("server/chunks/ssr/[root-of-the-server]__d1983533._.js")
+R.c("server/chunks/ssr/[root-of-the-server]__9d509a4f._.js")
+R.c("server/chunks/ssr/[root-of-the-server]__ed285406._.js")
+R.c("server/chunks/ssr/[root-of-the-server]__571897c0._.js")
+R.c("server/chunks/ssr/0bb3b_next_dist_client_components_6476b30a._.js")
+R.c("server/chunks/ssr/0bb3b_next_dist_client_components_builtin_forbidden_756250c5.js")
+R.c("server/chunks/ssr/ad83e_Revamp-Simple_client__next-internal_server_app__not-found_page_actions_51a1f7ca.js")
+R.m(51247)
+module.exports=R.m(51247).exports

@@ -1,0 +1,20 @@
+{
+  "/_global-error/page": "/_global-error",
+  "/_not-found/page": "/_not-found",
+  "/about/page": "/about",
+  "/admin/add-trivia/page": "/admin/add-trivia",
+  "/careerpath/page": "/careerpath",
+  "/contact/page": "/contact",
+  "/dailyquest/page": "/dailyquest",
+  "/fanfeud/page": "/fanfeud",
+  "/forgot-password/page": "/forgot-password",
+  "/friends/page": "/friends",
+  "/games/page": "/games",
+  "/login/page": "/login",
+  "/page": "/",
+  "/privacy/page": "/privacy",
+  "/profile/page": "/profile",
+  "/register/page": "/register",
+  "/stats/page": "/stats",
+  "/terms/page": "/terms"
+}

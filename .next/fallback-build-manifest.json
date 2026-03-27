@@ -1,0 +1,12 @@
+{
+  "pages": {
+    "/_app": []
+  },
+  "devFiles": [],
+  "polyfillFiles": [],
+  "lowPriorityFiles": [
+    "static/QuAVi-nOgO1tY_fs-Rkky/_ssgManifest.js",
+    "static/QuAVi-nOgO1tY_fs-Rkky/_buildManifest.js"
+  ],
+  "rootMainFiles": []
+}

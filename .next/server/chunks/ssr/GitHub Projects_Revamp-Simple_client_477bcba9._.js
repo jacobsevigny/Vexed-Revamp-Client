@@ -1,0 +1,3 @@
+module.exports=[56724,a=>{a.n(a.i(32990))},63259,a=>{a.n(a.i(55519))},71454,a=>{a.n(a.i(33699))},18493,a=>{a.n(a.i(92147))},29399,a=>{a.n(a.i(28295))},42108,(a,b,c)=>{"use strict";c._=function(a){return a&&a.__esModule?a:{default:a}}},47119,a=>{"use strict";var b=a.i(37446),c=a.i(30859);function d(){return(0,b.jsx)("div",{className:"min-h-screen",style:{backgroundColor:"#2eaafd"},children:(0,b.jsx)("div",{className:"pt-16",children:(0,b.jsx)(c.GamesSection,{})})})}a.s(["default",()=>d])}];
+
+//# sourceMappingURL=GitHub%20Projects_Revamp-Simple_client_477bcba9._.js.map
