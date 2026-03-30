@@ -3,3 +3,8 @@ dist
 .env
 .vscode
 .DS_Store
+.next
+out
+node_modules
+.env
+.env.local

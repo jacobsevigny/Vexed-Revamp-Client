@@ -1,27 +1,30 @@
 /**
  * Next.js dev proxy: rewrite /api/* to backend server to enable same-origin fetches
- * This keeps frontend code using relative `/api/...` paths and avoids CORS / extension blocking in dev.
+ * This keeps frontend code using relative `/api/...` paths and avoids CORS issues in dev.
+ *
+ * For production static hosting, the frontend should call the backend directly via
+ * NEXT_PUBLIC_API_BASE_URL, so these rewrites remain development-only.
  */
-const dev = process.env.NODE_ENV !== 'production'
+const dev = process.env.NODE_ENV !== "production";
 
 const rewrites = async () => {
-  if (!dev) return []
+  if (!dev) return [];
+
   return [
     {
-      source: '/api/:path*',
-      destination: 'http://localhost:5000/api/:path*',
+      source: "/api/:path*",
+      destination: "http://localhost:5000/api/:path*",
     },
-    // Proxy auth routes to backend in development to avoid CORS and allow httpOnly cookies
     {
-      source: '/auth/:path*',
-      destination: 'http://localhost:5000/auth/:path*',
+      source: "/auth/:path*",
+      destination: "http://localhost:5000/auth/:path*",
     },
-  ]
-}
+  ];
+};
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Note: `experimental.appDir` removed — Next.js handles the app directory automatically
+  output: "export",
   rewrites,
   typescript: {
     ignoreBuildErrors: true,
@@ -29,6 +32,6 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-}
+};
 
-export default nextConfig
+export default nextConfig;
