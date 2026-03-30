@@ -1,9 +1,0 @@
-1:"$Sreact.fragment"
-2:I[20684,["/_next/static/chunks/9e31f0b3321ad4ab.js","/_next/static/chunks/4d144aaab3d60f98.js","/_next/static/chunks/15750633d6115e98.js","/_next/static/chunks/d4b8d63931991349.js","/_next/static/chunks/4b8081a0e05d5b22.js"],"ViewportBoundary"]
-4:I[20684,["/_next/static/chunks/9e31f0b3321ad4ab.js","/_next/static/chunks/4d144aaab3d60f98.js","/_next/static/chunks/15750633d6115e98.js","/_next/static/chunks/d4b8d63931991349.js","/_next/static/chunks/4b8081a0e05d5b22.js"],"MetadataBoundary"]
-5:"$Sreact.suspense"
-:HL["/_next/static/chunks/606fa9daf237c05f.css","style"]
-:HL["/_next/static/chunks/5edd253d3c2baf12.css","style"]
-0:{"buildId":"QuAVi-nOgO1tY_fs-Rkky","tree":{"name":"","paramType":null,"paramKey":"","hasRuntimePrefetch":false,"slots":{"children":{"name":"/_not-found","paramType":null,"paramKey":"/_not-found","hasRuntimePrefetch":false,"slots":{"children":{"name":"__PAGE__","paramType":null,"paramKey":"__PAGE__","hasRuntimePrefetch":false,"slots":null,"isRootLayout":false}},"isRootLayout":false}},"isRootLayout":true},"head":["$","$1","h",{"children":[["$","meta",null,{"name":"robots","content":"noindex"}],["$","$L2",null,{"children":"$@3"}],["$","div",null,{"hidden":true,"children":["$","$L4",null,{"children":["$","$5",null,{"name":"Next.Metadata","children":"$@6"}]}]}],["$","meta",null,{"name":"next-size-adjust","content":""}]]}],"isHeadPartial":false,"staleTime":300}
-3:[["$","meta","0",{"charSet":"utf-8"}],["$","meta","1",{"name":"viewport","content":"width=device-width, initial-scale=1"}]]
-6:[["$","title","0",{"children":"Vexed Sports - Daily Sports Trivia"}],["$","meta","1",{"name":"description","content":"Test your sports knowledge every day with daily trivia challenges, leaderboards, and more."}],["$","meta","2",{"name":"generator","content":"v0.app"}]]

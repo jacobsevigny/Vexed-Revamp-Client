@@ -1,3 +1,0 @@
-module.exports=[56724,a=>{a.n(a.i(32990))},63259,a=>{a.n(a.i(55519))},71454,a=>{a.n(a.i(33699))},18493,a=>{a.n(a.i(92147))},57854,a=>{a.n(a.i(28295))},92147,(a,b,c)=>{"use strict";Object.defineProperty(c,"__esModule",{value:!0}),Object.defineProperty(c,"default",{enumerable:!0,get:function(){return f}});let d=a.r(37446),e=a.r(24946);function f(){return(0,d.jsx)(e.HTTPAccessErrorFallback,{status:401,message:"You're not authorized to access this page."})}("function"==typeof c.default||"object"==typeof c.default&&null!==c.default)&&void 0===c.default.__esModule&&(Object.defineProperty(c.default,"__esModule",{value:!0}),Object.assign(c.default,c),b.exports=c.default)}];
-
-//# sourceMappingURL=GitHub%20Projects_Revamp-Simple_client_8aedbe5f._.js.map
