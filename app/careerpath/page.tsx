@@ -133,9 +133,40 @@ export default function CareerPath() {
 
   const getStorageKey = () => `careerpath_progress_guest_${today}`;
 
-  // Handle answer submission (dummy, must be implemented)
-  const handleSubmit = () => {
-    // TODO: Implement answer submission logic
+  // Normalize function for answer comparison
+  function normalize(str: string) {
+    return str.toLowerCase().replace(/[^a-z0-9]/gi, "");
+  }
+
+  // Handle answer submission
+  const handleSubmit = (guess: string) => {
+    if (!quest || readOnly) return;
+    const correct = normalize(quest.player_name);
+    const userGuess = normalize(guess);
+
+    if (userGuess === correct) {
+      setShowConfetti(true);
+      setReadOnly(true);
+      setTimeout(() => {
+        setShowConfetti(false);
+        setModalOpen(false);
+        setCompleteModalOpen(true);
+      }, 800);
+    } else {
+      setShake(true);
+      setIncorrectGuesses((prev) => {
+        const next = prev + 1;
+        if (next >= 3) {
+          setReadOnly(true);
+          setTimeout(() => {
+            setModalOpen(false);
+            setCompleteModalOpen(true);
+          }, 800);
+        }
+        return next;
+      });
+      setTimeout(() => setShake(false), 500);
+    }
   };
 
   const load = useCallback(async () => {
