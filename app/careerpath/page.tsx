@@ -123,10 +123,35 @@ export default function CareerPath() {
   const [completeModalOpen, setCompleteModalOpen] = useState(false)
   const [initialized, setInitialized] = useState(false)
 
-  const [incorrectGuesses, setIncorrectGuesses] = useState(0)
+  // Persisted state keys
+  const storageKey = () => `careerpath_progress_guest_${today}`;
+  // Load from localStorage if available
+  const [incorrectGuesses, setIncorrectGuesses] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(storageKey());
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          return parsed.incorrectGuesses ?? 0;
+        } catch {}
+      }
+    }
+    return 0;
+  });
+  const [readOnly, setReadOnly] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(storageKey());
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          return parsed.readOnly ?? false;
+        } catch {}
+      }
+    }
+    return false;
+  });
   const [showConfetti, setShowConfetti] = useState(false)
   const [shake, setShake] = useState(false)
-  const [readOnly, setReadOnly] = useState(false)
 
   const containerRef = useRef<HTMLDivElement>(null)
   const [allNames, setAllNames] = useState<string[]>([])
@@ -139,6 +164,15 @@ export default function CareerPath() {
   }
 
   // Handle answer submission
+  const persistState = (newIncorrect: number, newReadOnly: boolean) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(storageKey(), JSON.stringify({
+        incorrectGuesses: newIncorrect,
+        readOnly: newReadOnly
+      }));
+    }
+  };
+
   const handleSubmit = (guess: string) => {
     if (!quest || readOnly) return;
     const correct = normalize(quest.player_name);
@@ -147,6 +181,7 @@ export default function CareerPath() {
     if (userGuess === correct) {
       setShowConfetti(true);
       setReadOnly(true);
+      persistState(incorrectGuesses, true);
       setTimeout(() => {
         setShowConfetti(false);
         setModalOpen(false);
@@ -158,10 +193,13 @@ export default function CareerPath() {
         const next = prev + 1;
         if (next >= 3) {
           setReadOnly(true);
+          persistState(next, true);
           setTimeout(() => {
             setModalOpen(false);
             setCompleteModalOpen(true);
           }, 800);
+        } else {
+          persistState(next, false);
         }
         return next;
       });
@@ -186,7 +224,23 @@ export default function CareerPath() {
       const names = await getAllNames(data.answers_table);
       setAllNames(names);
       setStatus("ready");
-      setModalOpen(true); // Automatically open the modal when data loads
+      // If game is over, show read-only modal; else, show guessing modal
+      if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem(storageKey());
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (parsed.readOnly) {
+              setReadOnly(true);
+              setModalOpen(true);
+              setCompleteModalOpen(false);
+              return;
+            }
+          } catch {}
+        }
+      }
+      setModalOpen(true);
+      setCompleteModalOpen(false);
     } catch (err: any) {
       setErrorMsg(err?.message || "Failed to load Career Path.");
       setStatus("error");
@@ -199,6 +253,12 @@ export default function CareerPath() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // When complete modal closes, show read-only modal with answer
+  const handleCompleteModalClose = () => {
+    setCompleteModalOpen(false);
+    setModalOpen(true);
+  };
 
   if (status === "loading") {
     return (
@@ -273,7 +333,7 @@ export default function CareerPath() {
         {completeModalOpen && (
           <div className="w-full flex justify-center mb-[50px] px-4">
             <CareerPathCompleteModal
-              onClose={() => setCompleteModalOpen(false)}
+              onClose={handleCompleteModalClose}
               gameOver={incorrectGuesses >= 3}
               playerName={quest?.player_name}
             />
