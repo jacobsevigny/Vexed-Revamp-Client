@@ -32,6 +32,11 @@ export default function FanFeud() {
   const [gridScale, setGridScale] = useState(1)
   const containerRef = useRef<HTMLDivElement>(null)
   const [shake, setShake] = useState(false)
+  // Tracks cards whose flip animation has fully completed.
+  // Once a card is in this set we stop rendering its front face, guaranteeing
+  // the placeholder number is gone even on Mobile Safari where
+  // backface-visibility can misbehave.
+  const [flippedCards, setFlippedCards] = useState<Set<number>>(new Set())
 
   const { isAuthenticated, isHydrated } = useAuth()
 
@@ -75,6 +80,9 @@ export default function FanFeud() {
     try {
       setStatus("loading")
       setErrorMsg("")
+      // Reset flip-tracking so cards restored from server/localStorage that are
+      // already revealed skip straight to the flipped state without animation.
+      setFlippedCards(new Set())
 
       const data = await getFanFeud()
       if (!data) {
@@ -109,6 +117,7 @@ export default function FanFeud() {
               const win = complete && incorrect < 3
 
               setRevealedAnswers(revealed)
+              setFlippedCards(new Set(revealed.map((r: boolean, i: number) => r ? i : -1).filter((i: number) => i >= 0)))
               setIncorrectGuesses(incorrect)
               setGameComplete(complete)
               setDidWin(win)
@@ -136,7 +145,9 @@ export default function FanFeud() {
         if (stored) {
           try {
             const parsed = JSON.parse(stored)
-            setRevealedAnswers(parsed.revealedAnswers || Array(8).fill(false))
+            const restoredRevealed: boolean[] = parsed.revealedAnswers || Array(8).fill(false)
+            setRevealedAnswers(restoredRevealed)
+            setFlippedCards(new Set(restoredRevealed.map((r, i) => r ? i : -1).filter(i => i >= 0)))
             setIncorrectGuesses(parsed.incorrectGuesses ?? 0)
             setGameComplete(parsed.gameComplete ?? false)
             setDidWin(parsed.didWin ?? false)
@@ -332,6 +343,9 @@ export default function FanFeud() {
                 const answer = answers.find((a) => a.rank === i + 1)
                 const isRevealed = revealedAnswers[i]
                 const shouldReveal = isRevealed || (gameComplete && !didWin && answer)
+                // Once the flip animation settles we stop rendering the front face
+                // entirely so the placeholder number cannot bleed through on any browser.
+                const frontFaceGone = flippedCards.has(i)
 
                 return (
                   <motion.div
@@ -346,23 +360,57 @@ export default function FanFeud() {
                       initial={false}
                       animate={{ rotateY: shouldReveal ? 180 : 0 }}
                       transition={{ duration: 0.8, ease: [0.34, 1.56, 0.64, 1] }}
-                      style={{ width: "100%", height: "100%", position: "relative", transformStyle: "preserve-3d" }}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        position: "relative",
+                        // Both the unprefixed and webkit-prefixed forms are needed.
+                        // Without -webkit-transform-style Safari flattens the children
+                        // and backface-visibility stops working.
+                        transformStyle: "preserve-3d",
+                        WebkitTransformStyle: "preserve-3d",
+                      }}
+                      onAnimationComplete={() => {
+                        if (shouldReveal) {
+                          setFlippedCards((prev) => new Set([...prev, i]))
+                        } else {
+                          setFlippedCards((prev) => {
+                            const next = new Set(prev)
+                            next.delete(i)
+                            return next
+                          })
+                        }
+                      }}
                     >
-                      {/* Front side – rank number */}
-                      <div
-                        className="absolute inset-0 flex flex-col items-center justify-center rounded-2xl shadow-2xl border-4 border-[#152a4d] overflow-hidden group hover:scale-105 transition-transform duration-300"
-                        style={{ backgroundColor: "#082644", backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden" }}
-                      >
-                        {answer && (
-                          <>
-                            <div className="absolute inset-0 bg-gradient-to-br from-[#2a569c]/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                            <span className="text-8xl sm:text-9xl font-black text-white/10 absolute">{i + 1}</span>
-                            <span className="text-6xl sm:text-7xl font-black text-white relative z-10">{i + 1}</span>
-                          </>
-                        )}
-                      </div>
+                      {/* Front face – rank number.
+                          Removed overflow-hidden: on Mobile Safari that property
+                          forces a new compositing layer on an element inside a
+                          preserve-3d context, which breaks backface-visibility and
+                          makes the number "ghost" over the revealed answer.
+                          Also removed hover:scale-105 / transition-transform for the
+                          same reason (CSS transforms on children of preserve-3d
+                          containers can re-flatten the 3D context in Safari).
+                          The belt-and-suspenders: we stop rendering this element
+                          entirely once the flip animation completes (frontFaceGone). */}
+                      {!frontFaceGone && (
+                        <div
+                          className="absolute inset-0 flex flex-col items-center justify-center rounded-2xl shadow-2xl border-4 border-[#152a4d]"
+                          style={{
+                            backgroundColor: "#082644",
+                            backfaceVisibility: "hidden",
+                            WebkitBackfaceVisibility: "hidden",
+                          }}
+                        >
+                          {answer && (
+                            <>
+                              <span className="text-8xl sm:text-9xl font-black text-white/10 absolute select-none">{i + 1}</span>
+                              <span className="text-6xl sm:text-7xl font-black text-white relative z-10">{i + 1}</span>
+                            </>
+                          )}
+                        </div>
+                      )}
 
-                      {/* Back side – answer text */}
+                      {/* Back face – answer text */}
                       <div
                         className="absolute inset-0 flex items-center justify-center rounded-2xl shadow-2xl border-4 border-[#152a4d] px-4 text-center overflow-hidden"
                         style={{
@@ -370,6 +418,7 @@ export default function FanFeud() {
                           backfaceVisibility: "hidden",
                           WebkitBackfaceVisibility: "hidden",
                           transform: "rotateY(180deg)",
+                          WebkitTransform: "rotateY(180deg)",
                         }}
                       >
                         <div className="relative z-10">
