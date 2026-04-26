@@ -1,16 +1,4 @@
-
 "use client"
-// Utility to check if user is logged in (based on localStorage 'user' or 'accessToken')
-function isUserLoggedIn() {
-  if (typeof window === 'undefined') return false;
-  try {
-    const user = localStorage.getItem('user');
-    const token = localStorage.getItem('accessToken');
-    return !!(user || token);
-  } catch {
-    return false;
-  }
-}
 
 import { useEffect, useRef, useState, useCallback } from "react"
 import { motion } from "framer-motion"
@@ -18,31 +6,12 @@ import { Navbar } from "@/components/navbar"
 import { FanFeudModal } from "@/components/fan-feud/fan-feud-modal"
 import { FanFeudCompleteModal } from "@/components/fan-feud/fan-feud-complete-modal"
 import { getFanFeud, getAllNames, authFetch } from "@/lib/api"
-import { useAuth } from '@/lib/auth-context'
+import { useAuth } from "@/lib/auth-context"
 
-type FanFeudAnswer = {
-  id: number
-  answer: string
-  rank: number
-}
-
+type FanFeudAnswer = { id: number; answer: string; rank: number }
 type Status = "loading" | "empty" | "error" | "ready"
 
 const today = new Date().toISOString().split("T")[0]
-
-// Fan Feud data is loaded from the server at runtime
-
-// Answer slot images (1-8)
-const answerImages = [
-  "/number-1-badge.jpg",
-  "/number-2-badge.jpg",
-  "/number-3-badge.jpg",
-  "/number-4-badge.jpg",
-  "/number-5-badge.jpg",
-  "/number-6-badge.jpg",
-  "/number-7-badge.jpg",
-  "/number-8-badge.jpg",
-]
 
 export default function FanFeud() {
   const [status, setStatus] = useState<Status>("loading")
@@ -59,83 +28,54 @@ export default function FanFeud() {
   const [incorrectGuesses, setIncorrectGuesses] = useState(0)
   const [gameComplete, setGameComplete] = useState(false)
   const [didWin, setDidWin] = useState(false)
-  const [initialized, setInitialized] = useState(false)
 
   const [gridScale, setGridScale] = useState(1)
   const containerRef = useRef<HTMLDivElement>(null)
   const [shake, setShake] = useState(false)
 
-  // Storage key for guest progress
-  const getStorageKey = () => `fanfeud_progress_guest_${today}`
+  const { isAuthenticated, isHydrated } = useAuth()
 
-  // Load progress from localStorage (for guests)
-  const loadProgressFromStorage = () => {
-    const storageKey = getStorageKey()
-    const stored = localStorage.getItem(storageKey)
-    if (stored) {
+  const guestKey = () => `fanfeud_progress_guest_${today}`
+
+  // ── Persist progress to the correct storage layer ──────────────────────────
+  // Called directly from handleGuess with the exact new values — no stale closure risk.
+  const saveProgress = async (
+    revealed: boolean[],
+    incorrect: number,
+    complete: boolean,
+    win: boolean,
+    currentAnswers: FanFeudAnswer[]
+  ) => {
+    if (isAuthenticated) {
       try {
-        const parsed = JSON.parse(stored)
-        setRevealedAnswers(parsed.revealedAnswers || Array(8).fill(false))
-        setIncorrectGuesses(parsed.incorrectGuesses ?? 0)
-        setGameComplete(parsed.gameComplete ?? false)
-        setDidWin(parsed.didWin ?? false)
-        // If the game was already completed (lost or won), show the complete modal on load
-        if (parsed.gameComplete) {
-          setShowCompleteModal(true)
-          // keep the question modal hidden on load when completed
-          setShowModal(false)
-        } else {
-          setShowCompleteModal(false)
-          setShowModal(true)
-        }
-      } catch {
-        console.warn("Invalid saved data. Resetting.")
-        setRevealedAnswers(Array(8).fill(false))
-        setIncorrectGuesses(0)
-        setGameComplete(false)
-        setDidWin(false)
-        setShowCompleteModal(false)
-        setShowModal(true)
-      }
+        const score = revealed.filter(Boolean).length
+        await authFetch("/api/scores/fan-feud", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            progress: { revealedAnswers: revealed },
+            score,
+            totalAnswers: currentAnswers.length,
+            completed: complete,
+            incorrectGuesses: incorrect,
+          }),
+        })
+      } catch { /* ignore — progress will be saved on next action */ }
     } else {
-      // no saved progress -> start with question modal open
-      setShowCompleteModal(false)
-      setShowModal(true)
-    }
-  }
-
-  // Save progress to localStorage (for guests only)
-  const saveProgressToStorage = () => {
-    if (!isUserLoggedIn()) {
-      const storageKey = getStorageKey()
-      const toStore = { revealedAnswers, incorrectGuesses, gameComplete, didWin }
-      localStorage.setItem(storageKey, JSON.stringify(toStore))
-    }
-  }
-
-  // Try persisting progress to server (authenticated users)
-  const { isAuthenticated } = useAuth();
-  const saveProgressToServer = async () => {
-    if (!isAuthenticated) return;
-    try {
-      const score = revealedAnswers.filter(Boolean).length
-      const totalAnswers = answers.length
-      await authFetch('/api/scores/fan-feud', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ progress: { revealedAnswers }, score, totalAnswers, completed: gameComplete, incorrectGuesses }),
-      });
-    } catch (e) {
-      // ignore failures
+      localStorage.setItem(
+        guestKey(),
+        JSON.stringify({ revealedAnswers: revealed, incorrectGuesses: incorrect, gameComplete: complete, didWin: win })
+      )
     }
   }
 
   const load = useCallback(async () => {
+    if (!isHydrated) return
+
     try {
       setStatus("loading")
       setErrorMsg("")
 
-      // Fetch from API
       const data = await getFanFeud()
       if (!data) {
         setStatus("empty")
@@ -144,92 +84,100 @@ export default function FanFeud() {
 
       setQuestion(data.question)
       setAnswersDb(data.answersDb)
-      // Map server shape (answerText) to client shape (answer)
-      const mappedAnswers = (data.answers || []).map((a: any) => ({ id: a.id, answer: a.answerText ?? a.answer ?? "", rank: a.rank }))
+      const mappedAnswers: FanFeudAnswer[] = (data.answers || []).map((a: any) => ({
+        id: a.id,
+        answer: a.answerText ?? a.answer ?? "",
+        rank: a.rank,
+      }))
       setAnswers(mappedAnswers)
-
-      // don't preload the full allNames list here; let the modal fetch it when needed
       setAllAnswers([])
 
       if (isAuthenticated) {
-        // Clear guest progress on login
-        const storageKey = getStorageKey();
-        localStorage.removeItem(storageKey);
-        // Try loading progress from server
+        // ── Logged-in: load progress from the database ──────────────────────
         try {
-          const res = await authFetch('/api/scores/load', { headers: { 'Content-Type': 'application/json' } });
+          const res = await authFetch("/api/scores/load", {
+            headers: { "Content-Type": "application/json" },
+          })
           if (res.ok) {
-            const json = await res.json()
-            const serverData = json?.data
-            if (serverData && serverData.fanFeudProgress) {
+            const { data: serverData } = await res.json()
+            if (serverData?.fanFeudProgress) {
               const prog = serverData.fanFeudProgress
-              setRevealedAnswers(prog.revealedAnswers || Array(8).fill(false))
-              setIncorrectGuesses(serverData.fanFeudIncorrectGuesses || 0)
-              setGameComplete(serverData.fanFeudCompleted || false)
-              setDidWin((serverData.fanFeudScore || 0) >= (serverData.fanFeudTotalAnswers || 0))
-              if (serverData.fanFeudCompleted) {
-                setShowCompleteModal(true)
-                setShowModal(false)
-              } else {
-                setShowCompleteModal(false)
-                setShowModal(true)
-              }
-              setInitialized(true)
+              const revealed = prog.revealedAnswers || Array(8).fill(false)
+              const incorrect = serverData.fanFeudIncorrectGuesses ?? 0
+              const complete = serverData.fanFeudCompleted ?? false
+              // Win = completed and didn't exhaust all guesses
+              const win = complete && incorrect < 3
+
+              setRevealedAnswers(revealed)
+              setIncorrectGuesses(incorrect)
+              setGameComplete(complete)
+              setDidWin(win)
+              setShowCompleteModal(complete)
+              setShowModal(!complete)
               setStatus("ready")
-              return;
+              return
             }
           }
-        } catch (e) {
-          // If server fails, treat as not logged in (do not fallback to localStorage)
+        } catch {
+          // Server unavailable — fall through to a fresh start
         }
-        // If logged in but no server data, start fresh
+        // Logged in but no server record today: start fresh
         setRevealedAnswers(Array(8).fill(false))
         setIncorrectGuesses(0)
         setGameComplete(false)
         setDidWin(false)
         setShowCompleteModal(false)
         setShowModal(true)
-        setInitialized(true)
-        setStatus("ready")
-        return;
       } else {
-        // fallback to localStorage for guests
-        loadProgressFromStorage();
+        // ── Guest: load progress from localStorage ───────────────────────────
+        // Guest localStorage is intentionally NOT cleared here so that
+        // guest progress remains intact when the user logs out again.
+        const stored = localStorage.getItem(guestKey())
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored)
+            setRevealedAnswers(parsed.revealedAnswers || Array(8).fill(false))
+            setIncorrectGuesses(parsed.incorrectGuesses ?? 0)
+            setGameComplete(parsed.gameComplete ?? false)
+            setDidWin(parsed.didWin ?? false)
+            setShowCompleteModal(parsed.gameComplete ?? false)
+            setShowModal(!(parsed.gameComplete ?? false))
+          } catch {
+            setRevealedAnswers(Array(8).fill(false))
+            setIncorrectGuesses(0)
+            setGameComplete(false)
+            setDidWin(false)
+            setShowCompleteModal(false)
+            setShowModal(true)
+          }
+        } else {
+          setRevealedAnswers(Array(8).fill(false))
+          setIncorrectGuesses(0)
+          setGameComplete(false)
+          setDidWin(false)
+          setShowCompleteModal(false)
+          setShowModal(true)
+        }
       }
 
-      setInitialized(true)
       setStatus("ready")
-      // `loadProgressFromStorage` will decide whether to open the question modal or the complete modal
-    } catch (e: any) {
+    } catch (e: unknown) {
       setStatus("error")
-      setErrorMsg(e?.message || "Network error")
+      setErrorMsg(e instanceof Error ? e.message : "Network error")
       setShowModal(false)
     }
-  }, [])
+  }, [isAuthenticated, isHydrated])
 
   useEffect(() => {
     load()
   }, [load])
-
-  // Save progress whenever state changes
-  useEffect(() => {
-    if (!initialized) return
-    if (isUserLoggedIn()) {
-      // Only persist to server
-      saveProgressToServer()
-    } else {
-      // Only persist to localStorage
-      saveProgressToStorage()
-    }
-  }, [revealedAnswers, incorrectGuesses, gameComplete, didWin, initialized])
 
   // Handle responsive scaling
   useEffect(() => {
     const onResize = () => {
       const gridNaturalWidth = 2 * 264 + 24 + 48
       const maxGridWidth = window.innerWidth * 0.9
-      const scale = Math.min(1, maxGridWidth / gridNaturalWidth)
-      setGridScale(scale)
+      setGridScale(Math.min(1, maxGridWidth / gridNaturalWidth))
     }
     onResize()
     window.addEventListener("resize", onResize)
@@ -238,38 +186,46 @@ export default function FanFeud() {
 
   const handleGuess = (guess: string) => {
     const normalizedGuess = guess.trim().toLowerCase()
-    const matched = answers.find((ans) => ((ans.answer ?? "").trim().toLowerCase() === normalizedGuess))
+    const matched = answers.find(
+      (ans) => (ans.answer ?? "").trim().toLowerCase() === normalizedGuess
+    )
 
     if (matched) {
-      setRevealedAnswers((prev) => {
-        const updated = [...prev]
-        updated[matched.rank - 1] = true
+      // ── Correct guess ─────────────────────────────────────────────────────
+      const newRevealed = [...revealedAnswers]
+      newRevealed[matched.rank - 1] = true
 
-        const allRevealed = updated.every((val, i) => {
-          const hasAnswer = answers.some((a) => a.rank === i + 1)
-          return !hasAnswer || val
-        })
-
-        if (allRevealed) {
-          setGameComplete(true)
-          setDidWin(true)
-          setShowCompleteModal(true)
-        }
-
-        return updated
+      const allRevealed = newRevealed.every((val, i) => {
+        const hasAnswer = answers.some((a) => a.rank === i + 1)
+        return !hasAnswer || val
       })
+
+      setRevealedAnswers(newRevealed)
+
+      if (allRevealed) {
+        setGameComplete(true)
+        setDidWin(true)
+        setShowCompleteModal(true)
+        saveProgress(newRevealed, incorrectGuesses, true, true, answers)
+      } else {
+        saveProgress(newRevealed, incorrectGuesses, false, false, answers)
+      }
     } else {
+      // ── Wrong guess ───────────────────────────────────────────────────────
       setShake(true)
       setTimeout(() => setShake(false), 500)
-      setIncorrectGuesses((prev) => {
-        const newCount = prev + 1
-        if (newCount >= 3) {
-          setGameComplete(true)
-            setDidWin(false)
-            setShowCompleteModal(true)
-        }
-        return newCount
-      })
+
+      const newIncorrect = incorrectGuesses + 1
+      setIncorrectGuesses(newIncorrect)
+
+      if (newIncorrect >= 3) {
+        setGameComplete(true)
+        setDidWin(false)
+        setShowCompleteModal(true)
+        saveProgress(revealedAnswers, newIncorrect, true, false, answers)
+      } else {
+        saveProgress(revealedAnswers, newIncorrect, false, false, answers)
+      }
     }
   }
 
@@ -298,8 +254,8 @@ export default function FanFeud() {
           <div className="bg-white rounded-2xl shadow-xl p-8 text-center w-full max-w-md border-4 border-[#152a4d]">
             <h1 className="text-3xl font-bold mb-4 text-[#152a4d]">No Fan Feud Yet</h1>
             <p className="text-gray-700">
-              There isn't a Fan Feud published for today (<span className="font-mono font-semibold">{today}</span>) yet.
-              Check back later!
+              There isn't a Fan Feud published for today (
+              <span className="font-mono font-semibold">{today}</span>) yet. Check back later!
             </p>
           </div>
         </div>
@@ -333,7 +289,6 @@ export default function FanFeud() {
         style={{ backgroundColor: "#2eaafd" }}
       >
         <div className="w-full max-w-6xl flex flex-col items-center relative">
-          {/* Question header with modern styling */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -344,14 +299,13 @@ export default function FanFeud() {
             <p className="text-xl sm:text-2xl text-white/90 font-semibold">Guess all answers on the board to win!</p>
           </motion.div>
 
-          {/* Floating modal */}
           {showModal && (
             <div className="w-full flex justify-center mb-8 z-10">
               <FanFeudModal
                 question={question}
                 answersDb={answersDb}
                 onSubmit={handleGuess}
-                shake={shake} 
+                shake={shake}
                 allAnswers={allAnswers}
                 incorrectGuesses={incorrectGuesses}
                 readOnly={gameComplete && !didWin}
@@ -359,14 +313,12 @@ export default function FanFeud() {
             </div>
           )}
 
-          {/* Complete modal */}
           {showCompleteModal && (
             <div className="w-full flex justify-center mb-8 z-50 relative">
               <FanFeudCompleteModal
                 correctCount={revealedAnswers.filter(Boolean).length}
                 totalCount={answers.length}
                 onClose={() => {
-                  // If the user won, just close the complete modal; if they lost, re-open the question modal in read-only mode
                   setShowCompleteModal(false)
                   if (!didWin) setShowModal(true)
                 }}
@@ -392,28 +344,14 @@ export default function FanFeud() {
                   >
                     <motion.div
                       initial={false}
-                      animate={{
-                        rotateY: shouldReveal ? 180 : 0,
-                      }}
-                      transition={{
-                        duration: 0.8,
-                        ease: [0.34, 1.56, 0.64, 1],
-                      }}
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        position: "relative",
-                        transformStyle: "preserve-3d",
-                      }}
+                      animate={{ rotateY: shouldReveal ? 180 : 0 }}
+                      transition={{ duration: 0.8, ease: [0.34, 1.56, 0.64, 1] }}
+                      style={{ width: "100%", height: "100%", position: "relative", transformStyle: "preserve-3d" }}
                     >
-                      {/* Front side - rank number */}
+                      {/* Front side – rank number */}
                       <div
                         className="absolute inset-0 flex flex-col items-center justify-center rounded-2xl shadow-2xl border-4 border-[#152a4d] overflow-hidden group hover:scale-105 transition-transform duration-300"
-                        style={{
-                          backgroundColor: "#082644",
-                          backfaceVisibility: "hidden",
-                          WebkitBackfaceVisibility: "hidden",
-                        }}
+                        style={{ backgroundColor: "#082644", backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden" }}
                       >
                         {answer && (
                           <>
@@ -424,7 +362,7 @@ export default function FanFeud() {
                         )}
                       </div>
 
-                      {/* Back side - answer text */}
+                      {/* Back side – answer text */}
                       <div
                         className="absolute inset-0 flex items-center justify-center rounded-2xl shadow-2xl border-4 border-[#152a4d] px-4 text-center overflow-hidden"
                         style={{
@@ -437,9 +375,7 @@ export default function FanFeud() {
                         <div className="relative z-10">
                           <div
                             className="text-4xl sm:text-5xl font-black mb-2"
-                            style={{
-                              color: !isRevealed && gameComplete && !didWin ? "#f06d6f" : "#2eaafd",
-                            }}
+                            style={{ color: !isRevealed && gameComplete && !didWin ? "#f06d6f" : "#2eaafd" }}
                           >
                             {i + 1}
                           </div>
@@ -447,10 +383,10 @@ export default function FanFeud() {
                             className="font-bold leading-tight"
                             style={{
                               fontSize: "clamp(1rem, 2.5vw, 1.3rem)",
-                                  color: !isRevealed && gameComplete && !didWin ? "#f06d6f" : "#fff",
+                              color: !isRevealed && gameComplete && !didWin ? "#f06d6f" : "#fff",
                             }}
                           >
-                                {answer?.answer}
+                            {answer?.answer}
                           </div>
                         </div>
                         {isRevealed && (
