@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
-import { LogOut, User } from "lucide-react"
+import { LogOut, User, ShieldCheck } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
 
@@ -57,6 +57,16 @@ export function Navbar() {
 
             {isAuthenticated ? (
               <div className="flex items-center gap-4">
+                {user?.isAdmin && (
+                  <Link
+                    href="/admin/add-trivia"
+                    className="flex items-center gap-1.5 text-white/70 hover:text-white font-medium transition-colors"
+                    title="Admin"
+                  >
+                    <ShieldCheck className="h-4 w-4" />
+                    <span className="hidden sm:inline">Admin</span>
+                  </Link>
+                )}
                 <Link
                   href="/profile"
                   className="flex items-center gap-1.5 text-white/90 hover:text-white font-medium transition-colors"

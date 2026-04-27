@@ -38,7 +38,7 @@ function clearAuthSessionCookie() {
   document.cookie = `auth_session=; path=/; SameSite=Lax; Max-Age=0`;
 }
 
-type User = { id: number; email: string; username: string };
+type User = { id: number; email: string; username: string; isAdmin?: boolean };
 
 interface AuthContextProps {
   user: User | null;
