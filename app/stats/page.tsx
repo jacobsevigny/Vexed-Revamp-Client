@@ -1,289 +1,460 @@
 "use client"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
-import { Badge } from "@/components/ui/badge"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Button } from "@/components/ui/button"
+
+import { useState, useEffect, useCallback } from "react"
+import { authFetch } from "@/lib/api"
+import { useAuth } from "@/lib/auth-context"
 import Link from "next/link"
-import { Trophy, Target, TrendingUp, Calendar, CheckCircle2, XCircle } from "lucide-react"
+import { Trophy, Target, TrendingUp, Loader2, Check, X } from "lucide-react"
 
-// Determine logged-in state from localStorage (client-side)
-import { useEffect, useState } from 'react'
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-const ClientStatsPage = () => {
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
+type DQProgress = { index: number; correct: boolean; guess: string }
 
-  useEffect(() => {
-    try {
-      const hasToken = !!(localStorage.getItem('accessToken') || localStorage.getItem('user'))
-      setIsLoggedIn(hasToken)
-    } catch (e) {
-      setIsLoggedIn(false)
-    }
-  }, [])
+type DQEntry = {
+  date: string
+  score: number
+  completed: boolean
+  progress: DQProgress[] | null
+}
 
-  if (!isLoggedIn) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: "#2eaafd" }}>
-        <Card className="max-w-md w-full border-white/20" style={{ backgroundColor: "#082644" }}>
-          <CardContent className="pt-6 text-center">
-            <div className="mb-4 flex justify-center">
-              <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center">
-                <Trophy className="w-8 h-8 text-white" />
-              </div>
-            </div>
-            <h2 className="text-2xl font-bold text-white mb-2">Login Required</h2>
-            <p className="text-white/70 mb-6">Please log in to view your stats and track your progress.</p>
-            <Link href="/login">
-              <Button className="bg-white text-[#2a569c] hover:bg-white/90 font-semibold">Go to Login</Button>
-            </Link>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
+type FFEntry = {
+  date: string
+  score: number
+  totalAnswers: number
+  completed: boolean
+  incorrectGuesses: number
+  revealedAnswers: boolean[] | null
+  answerTexts: string[] | null
+}
+
+type CPEntry = {
+  date: string
+  correct: boolean
+  completed: boolean
+  incorrectGuesses: number
+  guess: string | null
+}
+
+type GameStats = {
+  dailyQuest: DQEntry[]
+  fanFeud: FFEntry[]
+  careerPath: CPEntry[]
+}
+
+// ─── Date formatting ──────────────────────────────────────────────────────────
+
+function fmtDate(dateStr: string) {
+  return new Date(dateStr).toLocaleDateString("en-US", {
+    month: "short", day: "numeric", year: "numeric", timeZone: "UTC",
+  })
+}
+
+// ─── Tooltip dot ─────────────────────────────────────────────────────────────
+// Renders a green/red circle. On hover (desktop) or tap (mobile) shows a dark
+// tooltip above it with the guessed answer text. Uses z-[9999] so it is never
+// hidden behind other cards.
+
+function Dot({
+  correct,
+  label,
+  value,
+}: {
+  correct: boolean
+  label: string
+  value: string | null | undefined
+}) {
+  const [show, setShow] = useState(false)
 
   return (
-    <StatsContent />
+    <div
+      className="relative"
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+      onTouchStart={e => { e.preventDefault(); setShow(v => !v) }}
+    >
+      <div
+        className={`h-7 w-7 rounded-full cursor-pointer transition-transform active:scale-90 hover:scale-110 ${
+          correct ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.4)]"
+        }`}
+      />
+      {show && (
+        <div className="absolute bottom-[calc(100%+6px)] left-1/2 -translate-x-1/2 z-[9999] pointer-events-none">
+          <div
+            className="rounded-lg border border-white/20 shadow-2xl px-3 py-2 text-center whitespace-nowrap min-w-[80px] max-w-[200px]"
+            style={{ backgroundColor: "#082644" }}
+          >
+            <p className="text-white/50 text-[10px] uppercase tracking-wider mb-0.5">{label}</p>
+            <p className="text-white text-xs font-medium truncate">{value || "—"}</p>
+          </div>
+          {/* Arrow */}
+          <div className="flex justify-center mt-[-1px]">
+            <div className="w-0 h-0 border-x-4 border-t-4 border-x-transparent border-t-[#082644]" />
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
-export default ClientStatsPage
-
-// Keep the actual page content in a separate component so it can be rendered when logged in
-function StatsContent() {
-  const [stats, setStats] = useState<any | null>(null)
-  const [history, setHistory] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    let mounted = true
-    ;(async () => {
-      try {
-        const { isAuthenticated } = require('@/lib/auth-context').useAuth();
-        if (!isAuthenticated) {
-          setStats(null)
-          setHistory([])
-          setLoading(false)
-          return
-        }
-        const { authFetch } = require('@/lib/api');
-        const [sRes, hRes] = await Promise.all([
-          authFetch('/api/scores/stats', { headers: { 'Content-Type': 'application/json' } }),
-          authFetch('/api/scores/history', { headers: { 'Content-Type': 'application/json' } }),
-        ])
-
-        if (!mounted) return
-
-        if (sRes.ok) {
-          const sj = await sRes.json()
-          setStats(sj?.data || null)
-        } else {
-          setStats(null)
-        }
-
-        if (hRes.ok) {
-          const hj = await hRes.json()
-          setHistory(hj?.data || [])
-        } else {
-          setHistory([])
-        }
-      } catch (e) {
-        setStats(null)
-        setHistory([])
-      } finally {
-        if (mounted) setLoading(false)
-      }
-    })()
-    return () => { mounted = false }
-  }, [])
-
-  const gameStats = stats
-    ? [
-        {
-          id: 'daily-quest',
-          name: 'Daily Quest',
-          icon: Target,
-          daysPlayed: stats.dailyQuest?.daysPlayed || 0,
-          correctAnswers: stats.dailyQuest?.totalCorrect || 0,
-          totalQuestions: stats.dailyQuest?.totalQuestions || 0,
-          color: 'from-blue-500 to-cyan-500',
-          accentColor: 'text-cyan-400',
-        },
-        {
-          id: 'fan-feud',
-          name: 'Fan Feud',
-          icon: Trophy,
-          daysPlayed: stats.fanFeud?.daysPlayed || 0,
-          correctAnswers: stats.fanFeud?.totalCorrect || 0,
-          totalQuestions: stats.fanFeud?.totalAnswers || 0,
-          color: 'from-purple-500 to-pink-500',
-          accentColor: 'text-pink-400',
-        },
-        {
-          id: 'career-path',
-          name: 'Career Path',
-          icon: TrendingUp,
-          daysPlayed: stats.careerPath?.daysPlayed || 0,
-          correctAnswers: stats.careerPath?.correctGuesses || 0,
-          totalQuestions: stats.careerPath?.daysPlayed || 0,
-          color: 'from-emerald-500 to-teal-500',
-          accentColor: 'text-teal-400',
-        },
-      ]
-    : []
-
-  const recentActivity = history.slice(0, 7).map((s) => ({
-    date: s.date,
-    dailyQuest: s.dailyQuestScore || 0,
-    fanFeud: s.fanFeudScore || 0,
-    careerPath: s.careerPathCorrect ? 5 : 0,
-    completed: !!(s.dailyQuestCompleted || s.fanFeudCompleted || s.careerPathCompleted),
-  }))
-
-  const totalDaysPlayed = stats?.totalDaysPlayed || gameStats.reduce((sum, game) => sum + (game.daysPlayed || 0), 0)
+// Single Career Path result dot (check or X with tooltip)
+function CPDot({ correct, guess }: { correct: boolean; guess: string | null }) {
+  const [show, setShow] = useState(false)
 
   return (
-    <div className="min-h-screen pt-24 pb-12 px-4" style={{ backgroundColor: "#2eaafd" }}>
-      <div className="container mx-auto max-w-7xl">
-        {/* Header */}
-        <div className="mb-8 text-center">
-          <h1 className="text-4xl md:text-5xl font-bold text-white mb-3 flex items-center justify-center gap-3">
-            <Trophy className="w-10 h-10 text-[#3cbcff]" />
-            Your Stats
-          </h1>
-          <p className="text-white/70 text-lg">Track your performance across all trivia games</p>
-        </div>
-
-        {/* Summary Card */}
-        <Card className="mb-8 border-white/20 overflow-hidden" style={{ backgroundColor: "#082644" }}>
-          <div className="bg-gradient-to-r from-[#3cbcff]/20 to-transparent p-6">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center">
-                <Calendar className="w-8 h-8 text-[#3cbcff]" />
-              </div>
-              <div>
-                <p className="text-white/70 text-sm font-medium">Total Days Played</p>
-                <p className="text-4xl font-bold text-white">{totalDaysPlayed}</p>
-              </div>
-            </div>
+    <div
+      className="relative inline-flex"
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+      onTouchStart={e => { e.preventDefault(); setShow(v => !v) }}
+    >
+      <div
+        className={`h-9 w-9 rounded-full cursor-pointer transition-transform hover:scale-110 flex items-center justify-center ${
+          correct ? "bg-emerald-500" : "bg-red-500"
+        }`}
+      >
+        {correct
+          ? <Check className="h-5 w-5 text-white" />
+          : <X className="h-5 w-5 text-white" />}
+      </div>
+      {show && (
+        <div className="absolute bottom-[calc(100%+6px)] left-1/2 -translate-x-1/2 z-[9999] pointer-events-none">
+          <div
+            className="rounded-lg border border-white/20 shadow-2xl px-3 py-2 text-center whitespace-nowrap min-w-[80px] max-w-[200px]"
+            style={{ backgroundColor: "#082644" }}
+          >
+            <p className="text-white/50 text-[10px] uppercase tracking-wider mb-0.5">Guessed</p>
+            <p className="text-white text-xs font-medium truncate">{guess || "—"}</p>
           </div>
-        </Card>
+          <div className="flex justify-center mt-[-1px]">
+            <div className="w-0 h-0 border-x-4 border-t-4 border-x-transparent border-t-[#082644]" />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
-        {/* Game Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          {gameStats.map((game) => {
-            const accuracy = Math.round((game.correctAnswers / game.totalQuestions) * 100)
-            const Icon = game.icon
+// ─── History row (small, for previous 4 games) ───────────────────────────────
 
+function HistoryRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between rounded-xl bg-white/5 border border-white/10 px-4 py-3">
+      <span className="text-white/50 text-sm">{label}</span>
+      {children}
+    </div>
+  )
+}
+
+// ─── Game section ─────────────────────────────────────────────────────────────
+
+function GameSection({
+  icon,
+  title,
+  accentClass,
+  mostRecent,
+  history,
+}: {
+  icon: React.ReactNode
+  title: string
+  accentClass: string
+  mostRecent: React.ReactNode
+  history: React.ReactNode
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 shadow-xl overflow-visible" style={{ backgroundColor: "#082644" }}>
+      <div className={`h-1 ${accentClass}`} />
+      <div className="px-6 py-5">
+        <div className="flex items-center gap-2 mb-5">
+          {icon}
+          <h2 className="text-xl font-bold text-white">{title}</h2>
+        </div>
+        {/* Most recent — larger card */}
+        {mostRecent}
+        {/* Previous 4 */}
+        {history}
+      </div>
+    </div>
+  )
+}
+
+// ─── Daily Quest section ──────────────────────────────────────────────────────
+
+function DailyQuestSection({ entries }: { entries: DQEntry[] }) {
+  if (entries.length === 0) {
+    return (
+      <GameSection
+        icon={<Target className="h-5 w-5 text-cyan-400" />}
+        title="Daily Quest"
+        accentClass="bg-gradient-to-r from-blue-500 to-cyan-500"
+        mostRecent={<p className="text-white/40 text-sm py-4 text-center">No games played yet</p>}
+        history={null}
+      />
+    )
+  }
+
+  const [recent, ...prev] = entries
+
+  const mostRecent = (
+    <div className="rounded-xl bg-white/5 border border-white/10 px-5 py-4 mb-3">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-white font-semibold text-base">{fmtDate(recent.date)}</span>
+        <span className="text-cyan-300 font-bold text-lg">{recent.score}/5</span>
+      </div>
+      {recent.progress ? (
+        <div className="flex gap-2 flex-wrap">
+          {Array.from({ length: 5 }, (_, i) => {
+            const ans = recent.progress!.find(p => p.index === i)
             return (
-              <Card
-                key={game.id}
-                className="border-white/20 overflow-hidden hover:scale-105 transition-transform duration-300"
-                style={{ backgroundColor: "#082644" }}
-              >
-                <div className={`h-2 bg-gradient-to-r ${game.color}`} />
-                <CardHeader>
-                  <div className="flex items-center justify-between mb-2">
-                    <Icon className={`w-8 h-8 ${game.accentColor}`} />
-                    <Badge className="bg-white/20 text-white border-0">{game.daysPlayed} days</Badge>
-                  </div>
-                  <CardTitle className="text-white text-xl">{game.name}</CardTitle>
-                  <CardDescription className="text-white/60">Performance Overview</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <div className="flex justify-between text-sm mb-2">
-                      <span className="text-white/70">Accuracy</span>
-                      <span className="text-white font-semibold">{accuracy}%</span>
-                    </div>
-                    <Progress value={accuracy} className="h-3 bg-white/10" />
-                  </div>
-                  <div className="pt-2 border-t border-white/10">
-                    <div className="flex justify-between items-center">
-                      <span className="text-white/70 text-sm">Correct Answers</span>
-                      <span className="text-white font-bold text-lg">
-                        {game.correctAnswers} / {game.totalQuestions}
-                      </span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <Dot
+                key={i}
+                correct={ans?.correct ?? false}
+                label={`Q${i + 1}`}
+                value={ans?.guess}
+              />
             )
           })}
         </div>
+      ) : (
+        <div className="flex gap-2">
+          {Array.from({ length: 5 }, (_, i) => (
+            <div key={i} className={`h-7 w-7 rounded-full ${i < recent.score ? "bg-emerald-500" : "bg-red-500"}`} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
 
-        {/* Recent Activity Table */}
-        <Card className="border-white/20" style={{ backgroundColor: "#082644" }}>
-          <CardHeader>
-            <CardTitle className="text-white text-2xl flex items-center gap-2">
-              <Calendar className="w-6 h-6 text-[#3cbcff]" />
-              Recent Activity
-            </CardTitle>
-            <CardDescription className="text-white/60">Your performance over the last 7 days</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-white/10 hover:bg-white/5">
-                    <TableHead className="text-white/80 font-semibold">Date</TableHead>
-                    <TableHead className="text-white/80 font-semibold text-center">Daily Quest</TableHead>
-                    <TableHead className="text-white/80 font-semibold text-center">Fan Feud</TableHead>
-                    <TableHead className="text-white/80 font-semibold text-center">Career Path</TableHead>
-                    <TableHead className="text-white/80 font-semibold text-center">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {recentActivity.map((day, index) => (
-                    <TableRow key={index} className="border-white/10 hover:bg-white/5 transition-colors">
-                      <TableCell className="text-white font-medium">
-                        {new Date(day.date).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge
-                          variant="outline"
-                          className="bg-cyan-500/20 text-cyan-300 border-cyan-500/30 font-semibold"
-                        >
-                          {day.dailyQuest}/5
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge
-                          variant="outline"
-                          className="bg-pink-500/20 text-pink-300 border-pink-500/30 font-semibold"
-                        >
-                          {day.fanFeud}/5
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge
-                          variant="outline"
-                          className="bg-teal-500/20 text-teal-300 border-teal-500/30 font-semibold"
-                        >
-                          {day.careerPath}/5
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {day.completed ? (
-                          <CheckCircle2 className="w-5 h-5 text-green-400 mx-auto" />
-                        ) : (
-                          <XCircle className="w-5 h-5 text-red-400 mx-auto" />
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
+  const history = prev.length > 0 ? (
+    <div className="space-y-2">
+      {prev.map((e, i) => (
+        <HistoryRow key={i} label={fmtDate(e.date)}>
+          <span className="text-white font-semibold tabular-nums">{e.score}/5</span>
+        </HistoryRow>
+      ))}
+    </div>
+  ) : null
+
+  return (
+    <GameSection
+      icon={<Target className="h-5 w-5 text-cyan-400" />}
+      title="Daily Quest"
+      accentClass="bg-gradient-to-r from-blue-500 to-cyan-500"
+      mostRecent={mostRecent}
+      history={history}
+    />
+  )
+}
+
+// ─── Fan Feud section ─────────────────────────────────────────────────────────
+
+function FanFeudSection({ entries }: { entries: FFEntry[] }) {
+  if (entries.length === 0) {
+    return (
+      <GameSection
+        icon={<Trophy className="h-5 w-5 text-pink-400" />}
+        title="Fan Feud"
+        accentClass="bg-gradient-to-r from-purple-500 to-pink-500"
+        mostRecent={<p className="text-white/40 text-sm py-4 text-center">No games played yet</p>}
+        history={null}
+      />
+    )
+  }
+
+  const [recent, ...prev] = entries
+  const total = recent.totalAnswers || 0
+  const revealed = recent.revealedAnswers
+  const texts = recent.answerTexts
+
+  const mostRecent = (
+    <div className="rounded-xl bg-white/5 border border-white/10 px-5 py-4 mb-3">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-white font-semibold text-base">{fmtDate(recent.date)}</span>
+        <span className="text-pink-300 font-bold text-lg">{recent.score}/{total}</span>
+      </div>
+      {revealed ? (
+        <div className="flex gap-2 flex-wrap">
+          {Array.from({ length: total }, (_, i) => (
+            <Dot
+              key={i}
+              correct={revealed[i] === true}
+              label={`#${i + 1}`}
+              value={revealed[i] ? (texts?.[i] ?? null) : "Missed"}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="flex gap-2 flex-wrap">
+          {Array.from({ length: total }, (_, i) => (
+            <div key={i} className={`h-7 w-7 rounded-full ${i < recent.score ? "bg-emerald-500" : "bg-red-500"}`} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+
+  const history = prev.length > 0 ? (
+    <div className="space-y-2">
+      {prev.map((e, i) => (
+        <HistoryRow key={i} label={fmtDate(e.date)}>
+          <span className="text-white font-semibold tabular-nums">{e.score}/{e.totalAnswers}</span>
+        </HistoryRow>
+      ))}
+    </div>
+  ) : null
+
+  return (
+    <GameSection
+      icon={<Trophy className="h-5 w-5 text-pink-400" />}
+      title="Fan Feud"
+      accentClass="bg-gradient-to-r from-purple-500 to-pink-500"
+      mostRecent={mostRecent}
+      history={history}
+    />
+  )
+}
+
+// ─── Career Path section ──────────────────────────────────────────────────────
+
+function CareerPathSection({ entries }: { entries: CPEntry[] }) {
+  if (entries.length === 0) {
+    return (
+      <GameSection
+        icon={<TrendingUp className="h-5 w-5 text-teal-400" />}
+        title="Career Path"
+        accentClass="bg-gradient-to-r from-emerald-500 to-teal-500"
+        mostRecent={<p className="text-white/40 text-sm py-4 text-center">No games played yet</p>}
+        history={null}
+      />
+    )
+  }
+
+  const [recent, ...prev] = entries
+
+  const mostRecent = (
+    <div className="rounded-xl bg-white/5 border border-white/10 px-5 py-4 mb-3">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-white font-semibold text-base">{fmtDate(recent.date)}</span>
+        <span className={`font-bold text-lg ${recent.correct ? "text-emerald-400" : "text-red-400"}`}>
+          {recent.correct ? "Correct" : "Incorrect"}
+        </span>
+      </div>
+      <div className="flex items-center gap-3">
+        <CPDot correct={recent.correct} guess={recent.guess} />
+        <p className="text-white/50 text-sm">
+          {recent.incorrectGuesses === 0
+            ? "Guessed on first try"
+            : `${recent.incorrectGuesses} wrong guess${recent.incorrectGuesses !== 1 ? "es" : ""}`}
+        </p>
       </div>
     </div>
   )
 
+  const history = prev.length > 0 ? (
+    <div className="space-y-2">
+      {prev.map((e, i) => (
+        <HistoryRow key={i} label={fmtDate(e.date)}>
+          <span className={`font-semibold text-sm ${e.correct ? "text-emerald-400" : "text-red-400"}`}>
+            {e.correct ? "✓ Correct" : "✗ Incorrect"}
+          </span>
+        </HistoryRow>
+      ))}
+    </div>
+  ) : null
+
+  return (
+    <GameSection
+      icon={<TrendingUp className="h-5 w-5 text-teal-400" />}
+      title="Career Path"
+      accentClass="bg-gradient-to-r from-emerald-500 to-teal-500"
+      mostRecent={mostRecent}
+      history={history}
+    />
+  )
+}
+
+// ─── Not logged in view ───────────────────────────────────────────────────────
+
+function GuestView() {
+  return (
+    <div className="min-h-screen flex items-center justify-center pt-20 px-4" style={{ backgroundColor: "#2eaafd" }}>
+      <div
+        className="rounded-2xl border border-white/10 shadow-xl p-8 text-center max-w-sm w-full"
+        style={{ backgroundColor: "#082644" }}
+      >
+        <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-white/10 flex items-center justify-center">
+          <Trophy className="h-8 w-8 text-white/60" />
+        </div>
+        <h2 className="text-2xl font-bold text-white mb-2">Log in to view stats</h2>
+        <p className="text-white/60 mb-6 text-sm leading-relaxed">
+          Only logged-in users can view their game statistics and history.
+        </p>
+        <Link
+          href="/login?redirect=/stats"
+          className="inline-block bg-[#2eaafd] hover:bg-[#2eaafd]/90 text-white font-semibold px-6 py-2.5 rounded-xl transition-colors"
+        >
+          Go to Login
+        </Link>
+      </div>
+    </div>
+  )
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default function StatsPage() {
+  const { isAuthenticated, isHydrated } = useAuth()
+  const [data, setData] = useState<GameStats | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  const load = useCallback(async () => {
+    try {
+      const res = await authFetch("/api/scores/game-stats")
+      if (res.ok) {
+        const json = await res.json()
+        setData(json?.data ?? null)
+      }
+    } catch {
+      // silently fail — data stays null
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isHydrated) return
+    if (!isAuthenticated) { setLoading(false); return }
+    load()
+  }, [isHydrated, isAuthenticated, load])
+
+  // Show guest screen immediately once hydration confirms user is logged out
+  if (isHydrated && !isAuthenticated) return <GuestView />
+
+  return (
+    <div className="min-h-screen pt-24 pb-16 px-4" style={{ backgroundColor: "#2eaafd" }}>
+      <div className="mx-auto max-w-2xl">
+
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-4xl md:text-5xl font-bold text-white mb-2 flex items-center justify-center gap-3">
+            <Trophy className="h-10 w-10 text-[#3cbcff]" />
+            Your Stats
+          </h1>
+          <p className="text-white/70">Last 5 games per mode · hover circles for your guesses</p>
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-20">
+            <Loader2 className="h-8 w-8 text-white animate-spin" />
+          </div>
+        ) : (
+          <div className="space-y-5">
+            <DailyQuestSection entries={data?.dailyQuest ?? []} />
+            <FanFeudSection    entries={data?.fanFeud ?? []} />
+            <CareerPathSection entries={data?.careerPath ?? []} />
+          </div>
+        )}
+
+      </div>
+    </div>
+  )
 }
