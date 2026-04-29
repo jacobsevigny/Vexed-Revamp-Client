@@ -14,6 +14,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { useToast } from "@/hooks/use-toast"
 import { CalendarIcon, Plus, Trash2, CheckCircle2, AlertCircle, Loader2, RefreshCw } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
+import { useRouter } from "next/navigation"
 
 const Calendar = dynamic(() => import("@/components/ui/calendar").then(m => m.Calendar), { ssr: false })
 
@@ -65,7 +66,31 @@ const DARK_ITEM    = "text-white focus:bg-white/10 focus:text-white data-[highli
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+// Guard wrapper — keeps all hooks in the inner component so there are no
+// Rules-of-Hooks violations from conditional returns.
 export default function AddTriviaPage() {
+  const { user, isAuthenticated, isHydrated } = useAuth()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (!isHydrated) return
+    if (!isAuthenticated) { router.replace("/login?redirect=/admin/add-trivia"); return }
+    if (!user?.isAdmin)   { router.replace("/unauthorized"); return }
+  }, [isHydrated, isAuthenticated, user, router])
+
+  if (!isHydrated || !isAuthenticated || !user?.isAdmin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#2eaafd" }}>
+        <Loader2 className="h-8 w-8 text-white animate-spin" />
+      </div>
+    )
+  }
+
+  return <AddTriviaContent />
+}
+
+// All form state and logic live here — only rendered once the guard passes.
+function AddTriviaContent() {
   const { user } = useAuth()
   const { toast } = useToast()
 

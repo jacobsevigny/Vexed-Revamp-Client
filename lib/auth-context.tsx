@@ -28,14 +28,26 @@ function isTokenExpired(token: string) {
   return Date.now() / 1000 > decoded.exp;
 }
 
+const COOKIE_MAX_AGE = 30 * 24 * 60 * 60;
+
 function setAuthSessionCookie() {
   if (typeof document === "undefined") return;
-  document.cookie = `auth_session=1; path=/; SameSite=Lax; Max-Age=${30 * 24 * 60 * 60}`;
+  document.cookie = `auth_session=1; path=/; SameSite=Lax; Max-Age=${COOKIE_MAX_AGE}`;
 }
 
 function clearAuthSessionCookie() {
   if (typeof document === "undefined") return;
   document.cookie = `auth_session=; path=/; SameSite=Lax; Max-Age=0`;
+}
+
+function setAdminCookie() {
+  if (typeof document === "undefined") return;
+  document.cookie = `auth_admin=1; path=/; SameSite=Lax; Max-Age=${COOKIE_MAX_AGE}`;
+}
+
+function clearAdminCookie() {
+  if (typeof document === "undefined") return;
+  document.cookie = `auth_admin=; path=/; SameSite=Lax; Max-Age=0`;
 }
 
 type User = { id: number; email: string; username: string; isAdmin?: boolean };
@@ -66,6 +78,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     setUser(null);
     setIsAuthenticated(false);
     clearAuthSessionCookie();
+    clearAdminCookie();
 
     if (typeof window !== "undefined") {
       localStorage.removeItem("accessToken");
@@ -102,6 +115,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         if (userData) {
           localStorage.setItem("user", JSON.stringify(userData));
           setUser(userData);
+          if (userData.isAdmin) setAdminCookie(); else clearAdminCookie();
         }
 
         return true;
@@ -120,6 +134,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     setUser(userData);
     setIsAuthenticated(true);
     setAuthSessionCookie();
+    if (userData.isAdmin) setAdminCookie(); else clearAdminCookie();
     localStorage.setItem("accessToken", token);
     localStorage.setItem("user", JSON.stringify(userData));
   }, []);
@@ -155,15 +170,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setIsAuthenticated(true);
       setAuthSessionCookie();
 
+      let parsedUser: User | null = null;
       if (storedUser) {
-        try {
-          setUser(JSON.parse(storedUser));
-        } catch {
-          setUser(decodeJwt(token));
-        }
+        try { parsedUser = JSON.parse(storedUser); } catch { parsedUser = decodeJwt(token); }
       } else {
-        setUser(decodeJwt(token));
+        parsedUser = decodeJwt(token);
       }
+      setUser(parsedUser);
+      if (parsedUser?.isAdmin) setAdminCookie(); else clearAdminCookie();
       setIsHydrated(true);
     } else if (token && isTokenExpired(token)) {
       // Try a silent refresh; mark hydrated after either outcome
