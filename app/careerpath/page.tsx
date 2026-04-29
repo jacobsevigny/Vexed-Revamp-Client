@@ -115,7 +115,9 @@ export default function CareerPath() {
   }
 
   // ── Persist progress to the correct storage layer ──────────────────────────
-  const saveProgress = async (newIncorrect: number, newReadOnly: boolean, correct: boolean) => {
+  // `guess` is the raw text the user typed — only passed when the game is complete
+  // (correct answer or 3rd wrong guess) so the stats page can show it in tooltips.
+  const saveProgress = async (newIncorrect: number, newReadOnly: boolean, correct: boolean, guess?: string) => {
     if (isAuthenticated) {
       try {
         await authFetch("/api/scores/career-path", {
@@ -125,6 +127,7 @@ export default function CareerPath() {
             correct,
             completed: newReadOnly,
             incorrectGuesses: newIncorrect,
+            ...(newReadOnly && guess !== undefined ? { guess } : {}),
           }),
         })
       } catch { /* ignore — progress will be saved on next action */ }
@@ -217,7 +220,7 @@ export default function CareerPath() {
     if (userGuess === correct) {
       setShowConfetti(true)
       setReadOnly(true)
-      saveProgress(incorrectGuesses, true, true)
+      saveProgress(incorrectGuesses, true, true, guess)
       setTimeout(() => {
         setShowConfetti(false)
         setModalOpen(false)
@@ -230,7 +233,7 @@ export default function CareerPath() {
       setIncorrectGuesses(next)
       if (next >= 3) {
         setReadOnly(true)
-        saveProgress(next, true, false)
+        saveProgress(next, true, false, guess)
         setTimeout(() => {
           setModalOpen(false)
           setCompleteModalOpen(true)
