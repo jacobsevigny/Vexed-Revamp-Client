@@ -10,8 +10,9 @@ import { authFetch } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 import { useRouter } from "next/navigation"
 import {
-  Users, UserPlus, Search, Check, X, Loader2, UserCheck, Clock,
+  Users, UserPlus, Search, Check, X, Loader2, UserCheck, Clock, BarChart3,
 } from "lucide-react"
+import Link from "next/link"
 
 type APIUser = { id: number; username: string }
 type PendingRequest = { id: number; requester: APIUser }
@@ -354,6 +355,13 @@ export default function FriendsPage() {
                       <div className="flex-1 min-w-0">
                         <p className="text-white font-semibold truncate">{friend.username}</p>
                       </div>
+                      <Link
+                        href={`/stats?user=${friend.id}`}
+                        className="shrink-0 flex items-center gap-1.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white/80 hover:text-white rounded-lg px-3 py-1.5 text-sm font-medium transition-colors"
+                      >
+                        <BarChart3 className="h-3.5 w-3.5" />
+                        Stats
+                      </Link>
                     </div>
                   ))}
                 </div>
