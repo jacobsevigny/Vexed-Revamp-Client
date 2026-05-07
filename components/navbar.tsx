@@ -54,10 +54,17 @@ export function Navbar() {
       }`}
     >
       <div className="container mx-auto px-4">
-        <div className="flex items-center justify-between h-16">
+        {/*
+          Three-zone layout:
+            Left  → Logo (natural position)
+            Center → Nav links, absolutely centered within the container
+            Right  → Auth controls (ml-auto pushes to right edge)
+          On mobile the center nav is hidden; logo + auth remain left/right.
+        */}
+        <div className="relative flex items-center h-16">
 
-          {/* Logo */}
-          <Link href="/" className="flex items-center hover:opacity-90 transition-opacity">
+          {/* ── LEFT: Logo ──────────────────────────────────────────────────── */}
+          <Link href="/" className="flex items-center hover:opacity-90 transition-opacity shrink-0">
             <Image
               src="/logo-full-transparent.svg"
               alt="Vexed Sports"
@@ -68,28 +75,30 @@ export function Navbar() {
             />
           </Link>
 
-          {/* Right side */}
-          <div className="flex items-center gap-4 md:gap-6">
+          {/* ── CENTER: Nav links (desktop only, truly centered) ─────────────
+              absolute + left-1/2 + -translate-x-1/2 centers relative to the
+              full navbar container regardless of logo / auth widths.          */}
+          <div className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center gap-8">
+            <Link href="/" className="text-white/90 hover:text-white font-medium transition-colors relative group">
+              Home
+              <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-white transition-all group-hover:w-full" />
+            </Link>
+            <Link href="/games" className="text-white/90 hover:text-white font-medium transition-colors relative group">
+              Games
+              <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-white transition-all group-hover:w-full" />
+            </Link>
+            <Link href="/stats" className="text-white/90 hover:text-white font-medium transition-colors relative group">
+              Stats
+              <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-white transition-all group-hover:w-full" />
+            </Link>
+          </div>
 
-            {/* Nav links (desktop) */}
-            <div className="hidden md:flex items-center gap-8">
-              <Link href="/" className="text-white/90 hover:text-white font-medium transition-colors relative group">
-                Home
-                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-white transition-all group-hover:w-full" />
-              </Link>
-              <Link href="/games" className="text-white/90 hover:text-white font-medium transition-colors relative group">
-                Games
-                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-white transition-all group-hover:w-full" />
-              </Link>
-              <Link href="/stats" className="text-white/90 hover:text-white font-medium transition-colors relative group">
-                Stats
-                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-white transition-all group-hover:w-full" />
-              </Link>
-            </div>
+          {/* ── RIGHT: Auth controls ─────────────────────────────────────────
+              ml-auto pushes this section to the right edge.                  */}
+          <div className="ml-auto flex items-center gap-3 md:gap-4">
 
             {isAuthenticated ? (
-              <div className="flex items-center gap-3">
-
+              <>
                 {/* Admin link (admin only) */}
                 {user?.isAdmin && (
                   <Link
@@ -151,11 +160,13 @@ export function Navbar() {
                   <LogOut className="h-4 w-4" />
                   <span className="hidden sm:inline">Logout</span>
                 </button>
-
-              </div>
+              </>
             ) : (
-              <div className="flex items-center gap-4">
-                <Link href="/login" className="text-white/90 hover:text-white font-medium transition-colors relative group text-sm">
+              <>
+                <Link
+                  href="/login"
+                  className="text-white/90 hover:text-white font-medium transition-colors relative group text-sm"
+                >
                   Login
                   <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-white transition-all group-hover:w-full" />
                 </Link>
@@ -165,7 +176,7 @@ export function Navbar() {
                 >
                   Sign Up
                 </Link>
-              </div>
+              </>
             )}
 
           </div>
