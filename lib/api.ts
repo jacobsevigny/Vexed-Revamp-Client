@@ -31,7 +31,7 @@ function isTokenExpired(token: string) {
 
 async function refreshAccessToken(): Promise<string | null> {
   try {
-    const res = await fetch(buildUrl("/api/auth/refresh"), {
+    const res = await fetch(buildUrl("/auth/refresh"), {
       method: "POST",
       credentials: "include",
     });

@@ -1,495 +1,647 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import dynamic from 'next/dynamic'
+import { useState, useEffect, useCallback, useRef } from "react"
+import dynamic from "next/dynamic"
 import { Navbar } from "@/components/navbar"
-import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Card } from "@/components/ui/card"
-import { Plus, Trash2 } from 'lucide-react'
-import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion'
-import { Stepper } from '@/components/ui/stepper'
-import { SectionCard } from '@/components/ui/section-card'
-import { AutocompleteInput } from '@/components/ui/autocomplete-input'
-import { ReviewCard } from '@/components/ui/review-card'
-import { useToast } from '@/hooks/use-toast'
-const Calendar = dynamic(() => import('@/components/ui/calendar').then((m) => m.Calendar), { ssr: false })
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion"
+import { AutocompleteInput } from "@/components/ui/autocomplete-input"
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
+import { useToast } from "@/hooks/use-toast"
+import { CalendarIcon, Plus, Trash2, CheckCircle2, AlertCircle, Loader2, RefreshCw } from "lucide-react"
+import { useAuth } from "@/lib/auth-context"
+import { useRouter } from "next/navigation"
 
+const Calendar = dynamic(() => import("@/components/ui/calendar").then(m => m.Calendar), { ssr: false })
 
-const ANSWER_CATEGORIES = [
-  "NBA Players",
-  "NBA Teams",
-  "NHL Players",
-  "NHL Teams",
-  "NFL Players",
-  "NFL Teams",
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type DQQuestion = { text: string; answer: string; answersDb: string }
+type CPTeam     = { name: string; years: string }
+
+const BLANK_DQ: DQQuestion = { text: "", answer: "", answersDb: "" }
+const BLANK_TEAM: CPTeam   = { name: "", years: "" }
+
+// ─── Category helpers ─────────────────────────────────────────────────────────
+
+const DB_CATEGORIES: { label: string; value: string }[] = [
+  { label: "NFL Players", value: "nfl_players" },
+  { label: "NFL Teams",   value: "nfl_teams"   },
+  { label: "NBA Players", value: "nba_players" },
+  { label: "NBA Teams",   value: "nba_teams"   },
+  { label: "NHL Players", value: "nhl_players" },
+  { label: "NHL Teams",   value: "nhl_teams"   },
 ]
-const CAREER_PLAYER_CATEGORIES = [
-  "NFL Players",
-  "NHL Players",
-  "NBA Players",
+
+const SPORT_OPTIONS: { label: string; players: string; teams: string }[] = [
+  { label: "NFL", players: "nfl_players", teams: "nfl_teams" },
+  { label: "NBA", players: "nba_players", teams: "nba_teams" },
+  { label: "NHL", players: "nhl_players", teams: "nhl_teams" },
 ]
 
+const dbToSport = (db: string) => {
+  if (db.startsWith("nba")) return "NBA"
+  if (db.startsWith("nhl")) return "NHL"
+  return "NFL"
+}
 
+const formatDate = (d: Date) =>
+  d.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })
+
+const dateToStr = (d: Date) => {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${y}-${m}-${day}`
+}
+
+// ─── Reusable dark-theme select classes ───────────────────────────────────────
+const DARK_TRIGGER = "w-full bg-white/5 border-white/20 text-white hover:bg-white/10 focus:border-white/40 data-[placeholder]:text-white/40 [&_svg]:text-white/50"
+const DARK_CONTENT = "bg-[#0a2d52] border-white/20 text-white"
+const DARK_ITEM    = "text-white focus:bg-white/10 focus:text-white data-[highlighted]:bg-white/10"
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+// Guard wrapper — keeps all hooks in the inner component so there are no
+// Rules-of-Hooks violations from conditional returns.
 export default function AddTriviaPage() {
-  // Step state: 0 = date, 1 = daily quest, 2 = fan feud, 3 = career path, 4 = review
-  const [step, setStep] = useState(0)
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined)
-
-  // Daily Quest state
-  const [dailyQuestQuestions, setDailyQuestQuestions] = useState(Array(5).fill(null).map(() => ({ question: "", category: "" })))
-  const [dailyQuestAnswers, setDailyQuestAnswers] = useState(Array(5).fill(""))
-  const [dailyQuestLoading, setDailyQuestLoading] = useState(Array(5).fill(false))
-
-  // Suggestions cache by db key
-  const [suggestionsByDb, setSuggestionsByDb] = useState<Record<string, string[]>>({})
-
-  // Fan Feud state
-  const [fanFeudQuestion, setFanFeudQuestion] = useState("")
-  const [fanFeudCategory, setFanFeudCategory] = useState("")
-  const [fanFeudAnswers, setFanFeudAnswers] = useState(Array(8).fill(""))
-  const [fanFeudLoading, setFanFeudLoading] = useState(false)
-  const [fanFeudSuggestions, setFanFeudSuggestions] = useState<string[]>([])
-
-  // Career Path state
-  const [careerPathCategory, setCareerPathCategory] = useState("")
-  const [careerPathPlayer, setCareerPathPlayer] = useState("")
-  const [careerPathTeams, setCareerPathTeams] = useState([""])
-  const [careerPathPlayerSuggestions, setCareerPathPlayerSuggestions] = useState<string[]>([])
-  const [careerPathTeamSuggestions, setCareerPathTeamSuggestions] = useState<string[]>([])
-  const [careerPathPlayerLoading, setCareerPathPlayerLoading] = useState(false)
-  const [careerPathTeamLoading, setCareerPathTeamLoading] = useState(false)
-
-  // Validation state
-  const [validation, setValidation] = useState<any>({})
-  const [submitting, setSubmitting] = useState(false)
-
-  const { toast } = useToast()
-
-  // map UI category -> server `db` query param
-  const mapCategoryToDb = (category: string) => {
-    switch (category) {
-      case 'NBA Players': return 'nba_players'
-      case 'NBA Teams': return 'nba_teams'
-      case 'NHL Players': return 'nhl_players'
-      case 'NHL Teams': return 'nhl_teams'
-      case 'NFL Players': return 'nfl_players'
-      case 'NFL Teams': return 'nfl_teams'
-      default: return ''
-    }
-  }
-
-  // normalize for matching: strip diacritics/punctuation, lowercase and trim
-  const normalize = (text: string) =>
-    text
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-zA-Z0-9 ]/g, "")
-      .toLowerCase()
-      .trim()
-
-  const fetchAllNames = async (dbKey: string, setLoading?: (b: boolean) => void) => {
-    if (!dbKey) return []
-    try {
-      if (setLoading) setLoading(true)
-      if (suggestionsByDb[dbKey]) {
-        if (setLoading) setLoading(false)
-        return suggestionsByDb[dbKey]
-      }
-      const res = await fetch(`/api/allnames?db=${encodeURIComponent(dbKey)}`)
-      if (!res.ok) {
-        if (setLoading) setLoading(false)
-        return []
-      }
-      const data = await res.json()
-      setSuggestionsByDb((prev) => ({ ...prev, [dbKey]: data }))
-      if (setLoading) setLoading(false)
-      return data
-    } catch (e) {
-      if (setLoading) setLoading(false)
-      return []
-    }
-  }
-
-
-  // --- Step 1: Date selection ---
-  const handleDateSelect = (date: Date | undefined) => {
-    setSelectedDate(date)
-    setValidation((v: any) => ({ ...v, date: undefined }))
-  }
-
-  const handleContinueDate = () => {
-    if (!selectedDate) {
-      setValidation((v: any) => ({ ...v, date: 'Please select a date.' }))
-      return
-    }
-    setStep(1)
-  }
-
-  // On client mount, set the default date to today. This avoids the server
-  // rendering a Date-derived attribute that may format differently than the
-  // client (causing hydration mismatch errors).
+  const { user, isAuthenticated, isHydrated } = useAuth()
+  const router = useRouter()
 
   useEffect(() => {
-    if (selectedDate === undefined) setSelectedDate(new Date())
-  }, [])
+    if (!isHydrated) return
+    if (!isAuthenticated) { router.replace("/login?redirect=/admin/add-trivia"); return }
+    if (!user?.isAdmin)   { router.replace("/unauthorized"); return }
+  }, [isHydrated, isAuthenticated, user, router])
 
-
-  // --- Career Path team controls ---
-  const handleAddTeam = () => {
-    setCareerPathTeams([...careerPathTeams, ""])
+  if (!isHydrated || !isAuthenticated || !user?.isAdmin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#2eaafd" }}>
+        <Loader2 className="h-8 w-8 text-white animate-spin" />
+      </div>
+    )
   }
-  const handleRemoveTeam = (index: number) => {
-    if (careerPathTeams.length > 1) {
-      setCareerPathTeams(careerPathTeams.filter((_, i) => i !== index))
-    }
-  }
 
+  return <AddTriviaContent />
+}
 
-  // --- Step 5: Review & Publish ---
-  const handlePublish = async () => {
-    setSubmitting(true)
-    setValidation({})
-    // Validate all steps again before submit
-    // (Validation logic omitted here for brevity, but should be similar to previous logic)
-    // ...
-    const dateKey = selectedDate ? selectedDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
-    const dailyQuestionsPayload = dailyQuestQuestions.map((q, idx) => ({
-      text: q.question,
-      answer: (dailyQuestAnswers[idx] || '').trim(),
-      answersDb: mapCategoryToDb(q.category),
-    }))
-    const fanFeudPayload = {
-      question: fanFeudQuestion,
-      answersDb: mapCategoryToDb(fanFeudCategory),
-      answers: fanFeudAnswers.map((a) => (a || '').trim()),
-    }
-    const careerPathPayload = {
-      playerName: careerPathPlayer.trim(),
-      answersTable: mapCategoryToDb(careerPathCategory),
-      teams: careerPathTeams.map((t) => (t || '').trim()),
-    }
-    const payload = {
-      date: dateKey,
-      dailyQuestions: dailyQuestionsPayload,
-      fanFeud: fanFeudPayload,
-      careerPath: careerPathPayload,
-    }
+// All form state and logic live here — only rendered once the guard passes.
+function AddTriviaContent() {
+  const { user } = useAuth()
+  const { toast } = useToast()
+
+  // Date
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date())
+  const [calendarOpen, setCalendarOpen] = useState(false)
+  const dateStr = dateToStr(selectedDate)
+
+  // Loading / existing data status
+  const [loadingDate, setLoadingDate] = useState(false)
+  const [hasExisting, setHasExisting] = useState<{ dq: boolean; ff: boolean; cp: boolean } | null>(null)
+
+  // Suggestions cache: dbKey → string[]
+  const [cache, setCache] = useState<Record<string, string[]>>({})
+  const fetchingRef = useRef<Set<string>>(new Set())
+
+  const fetchNames = useCallback(async (db: string) => {
+    if (!db || cache[db] || fetchingRef.current.has(db)) return
+    fetchingRef.current.add(db)
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null
-      const headers: Record<string,string> = { 'Content-Type': 'application/json' }
-      if (token) headers['Authorization'] = `Bearer ${token}`
-      const res = await fetch('/api/admin/add-questions', {
-        method: 'POST',
+      const res = await fetch(`/api/allnames?db=${encodeURIComponent(db)}`)
+      if (res.ok) {
+        const data: string[] = await res.json()
+        setCache(prev => ({ ...prev, [db]: data }))
+      }
+    } finally {
+      fetchingRef.current.delete(db)
+    }
+  }, [cache])
+
+  // ── Daily Quest ──────────────────────────────────────────────────────────────
+  const [dqQuestions, setDqQuestions] = useState<DQQuestion[]>(() => Array(5).fill(null).map(() => ({ ...BLANK_DQ })))
+
+  const setDQ = (i: number, patch: Partial<DQQuestion>) =>
+    setDqQuestions(prev => prev.map((q, idx) => idx === i ? { ...q, ...patch } : q))
+
+  // ── Fan Feud ─────────────────────────────────────────────────────────────────
+  const [ffQuestion, setFfQuestion] = useState("")
+  const [ffDb, setFfDb]             = useState("")
+  const [ffAnswers, setFfAnswers]   = useState<string[]>(Array(8).fill(""))
+
+  // ── Career Path ──────────────────────────────────────────────────────────────
+  const [cpSport,  setCpSport]  = useState("NFL")
+  const [cpPlayer, setCpPlayer] = useState("")
+  const [cpTeams,  setCpTeams]  = useState<CPTeam[]>([{ ...BLANK_TEAM }])
+
+  const cpSportOpt  = SPORT_OPTIONS.find(s => s.label === cpSport) || SPORT_OPTIONS[0]
+  const cpPlayersDb = cpSportOpt.players
+  const cpTeamsDb   = cpSportOpt.teams
+
+  // ── Prefetch suggestions when categories are set ─────────────────────────────
+  useEffect(() => {
+    dqQuestions.forEach(q => { if (q.answersDb) fetchNames(q.answersDb) })
+  }, [dqQuestions, fetchNames])
+
+  useEffect(() => { if (ffDb) fetchNames(ffDb) }, [ffDb, fetchNames])
+
+  useEffect(() => {
+    fetchNames(cpPlayersDb)
+    fetchNames(cpTeamsDb)
+  }, [cpPlayersDb, cpTeamsDb, fetchNames])
+
+  // ── Load existing data when date changes ─────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false
+
+    const load = async () => {
+      setLoadingDate(true)
+      setHasExisting(null)
+      try {
+        const res = await fetch(`/api/admin/trivia-by-date?date=${dateStr}`)
+        if (cancelled || !res.ok) return
+        const data = await res.json()
+        if (cancelled) return
+
+        const hasDQ = !!(data.dailyQuest?.length)
+        const hasFF = !!data.fanFeud
+        const hasCP = !!data.careerPath
+        setHasExisting({ dq: hasDQ, ff: hasFF, cp: hasCP })
+
+        setDqQuestions(Array(5).fill(null).map((_, i) => {
+          const q = data.dailyQuest?.[i]
+          return q ? { text: q.text, answer: q.answer, answersDb: q.answersDb } : { ...BLANK_DQ }
+        }))
+
+        if (hasFF) {
+          setFfQuestion(data.fanFeud.question)
+          setFfDb(data.fanFeud.answersDb || "")
+          setFfAnswers(Array(8).fill("").map((_, i) => data.fanFeud.answers[i] || ""))
+        } else {
+          setFfQuestion(""); setFfDb(""); setFfAnswers(Array(8).fill(""))
+        }
+
+        if (hasCP) {
+          setCpSport(dbToSport(data.careerPath.answersTable))
+          setCpPlayer(data.careerPath.playerName)
+          setCpTeams(data.careerPath.teams.length
+            ? data.careerPath.teams.map((t: any) => ({ name: t.name, years: t.years || "" }))
+            : [{ ...BLANK_TEAM }]
+          )
+        } else {
+          setCpPlayer(""); setCpTeams([{ ...BLANK_TEAM }])
+        }
+      } catch {
+        // silently ignore
+      } finally {
+        if (!cancelled) setLoadingDate(false)
+      }
+    }
+
+    load()
+    return () => { cancelled = true }
+  }, [dateStr])
+
+  // ── Validation ───────────────────────────────────────────────────────────────
+  const [errors, setErrors] = useState<string[]>([])
+
+  const validate = (): boolean => {
+    const errs: string[] = []
+    dqQuestions.forEach((q, i) => {
+      if (!q.text.trim())   errs.push(`Daily Quest Q${i + 1}: question text required`)
+      if (!q.answersDb)     errs.push(`Daily Quest Q${i + 1}: answer category required`)
+      if (!q.answer.trim()) errs.push(`Daily Quest Q${i + 1}: answer required`)
+    })
+    if (!ffQuestion.trim()) errs.push("Fan Feud: question required")
+    if (!ffDb)              errs.push("Fan Feud: answer category required")
+    if (!ffAnswers.some(a => a.trim())) errs.push("Fan Feud: at least one answer required")
+    if (!cpPlayer.trim())   errs.push("Career Path: player name required")
+    if (!cpTeams.some(t => t.name.trim())) errs.push("Career Path: at least one team required")
+    setErrors(errs)
+    return errs.length === 0
+  }
+
+  // ── Submit ───────────────────────────────────────────────────────────────────
+  const [submitting, setSubmitting] = useState(false)
+  const [submitSuccess, setSubmitSuccess] = useState(false)
+
+  const handleSubmit = async () => {
+    setSubmitSuccess(false)
+    if (!validate()) {
+      document.getElementById("error-summary")?.scrollIntoView({ behavior: "smooth" })
+      return
+    }
+    setSubmitting(true)
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null
+      const headers: Record<string, string> = { "Content-Type": "application/json" }
+      if (token) headers["Authorization"] = `Bearer ${token}`
+
+      const res = await fetch("/api/admin/add-questions", {
+        method: "POST",
         headers,
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          date: dateStr,
+          dailyQuestions: dqQuestions.map(q => ({ text: q.text.trim(), answer: q.answer.trim(), answersDb: q.answersDb })),
+          fanFeud: { question: ffQuestion.trim(), answersDb: ffDb, answers: ffAnswers.map(a => a.trim()) },
+          careerPath: { playerName: cpPlayer.trim(), answersTable: cpPlayersDb, teams: cpTeams.map(t => ({ name: t.name.trim(), years: t.years.trim() })) },
+        }),
       })
+
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Unknown error' }))
-        toast({ title: 'Failed to submit trivia', description: err.error || res.statusText, variant: 'destructive' })
-        setSubmitting(false)
+        const err = await res.json().catch(() => ({ error: res.statusText }))
+        toast({ title: "Failed to save", description: err.error, variant: "destructive" })
         return
       }
-      toast({ title: 'Trivia published!', description: 'Trivia for ' + dateKey + ' was published successfully.' })
-      setSubmitting(false)
-      setStep(0)
-      // Optionally reset all state here
-    } catch (error: any) {
-      toast({ title: 'Failed to submit trivia', description: error?.message || String(error), variant: 'destructive' })
+
+      setSubmitSuccess(true)
+      setHasExisting({ dq: true, ff: true, cp: true })
+      toast({ title: "Trivia published!", description: `Saved for ${formatDate(selectedDate)}.` })
+      window.scrollTo({ top: 0, behavior: "smooth" })
+    } catch (e: unknown) {
+      toast({ title: "Failed to save", description: e instanceof Error ? e.message : "Network error", variant: "destructive" })
+    } finally {
       setSubmitting(false)
     }
   }
 
+  // ── Helpers ───────────────────────────────────────────────────────────────────
+
+  // Dark-themed input class used on every text input/textarea in this page
+  const DARK_INPUT = "bg-white/5 border-white/20 text-white placeholder:text-white/30 focus-visible:border-white/50 focus-visible:ring-white/20"
+
+  const anyExisting = hasExisting && (hasExisting.dq || hasExisting.ff || hasExisting.cp)
+
+  // ─── Render ───────────────────────────────────────────────────────────────────
   return (
     <>
       <Navbar />
-      <div className="min-h-screen w-full bg-[#2eaafd] pt-24 pb-16 px-4">
-        <div className="container mx-auto max-w-3xl">
-          <h1 className="text-4xl font-bold text-white text-center mb-8">Admin: Add Trivia Content</h1>
-          <Stepper currentStep={step} />
+      <div className="min-h-screen pt-20 pb-20 px-4" style={{ backgroundColor: "#2eaafd" }}>
+        <div className="max-w-3xl mx-auto">
 
-          {/* Step 1: Date selection */}
-          {step === 0 && (
-            <SectionCard title="Step 1: Choose Date" description="Select the date for which you want to create trivia.">
-              <div className="flex flex-col items-center gap-4">
-                <Calendar mode="single" selected={selectedDate} onSelect={handleDateSelect} className="rounded-md border" />
-                {validation.date && <div className="text-red-500 text-sm mt-2">{validation.date}</div>}
-                <Button size="lg" className="mt-4 w-full max-w-xs" onClick={handleContinueDate}>Continue</Button>
-              </div>
-            </SectionCard>
+          {/* Header */}
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold text-white drop-shadow-lg">Add Trivia Content</h1>
+            <p className="text-white/70 mt-2">Pick a date, fill in all three games, then publish.</p>
+          </div>
+
+          {/* Success banner */}
+          {submitSuccess && (
+            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4 mb-6 flex items-center gap-3">
+              <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
+              <span className="text-emerald-300 font-medium">
+                Trivia for {formatDate(selectedDate)} published successfully.
+              </span>
+            </div>
           )}
 
-          {/* Step 2: Daily Quest builder */}
-          {step === 1 && (
-            <SectionCard title="Step 2: Build Daily Quest" description="Enter 5 Daily Quest questions, each with a category and answer.">
-              <Accordion type="multiple" className="mb-4">
-                {dailyQuestQuestions.map((q, i) => (
-                  <AccordionItem key={i} value={`q${i}`}>
-                    <AccordionTrigger>
-                      <span className="font-semibold text-base">Question {i + 1}</span>
-                      <span className={q.question && q.category && dailyQuestAnswers[i] ? 'text-green-600 font-medium ml-2' : 'text-yellow-600 font-medium ml-2'}>
-                        {q.question && q.category && dailyQuestAnswers[i] ? 'Ready' : 'Incomplete'}
-                      </span>
+          {/* ══════════════════════════════════════════════════════════════════ */}
+          {/* DATE                                                               */}
+          {/* ══════════════════════════════════════════════════════════════════ */}
+          <section className="rounded-2xl shadow-xl border border-white/10 p-6 mb-6" style={{ backgroundColor: "#082644" }}>
+            <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+              <CalendarIcon className="h-5 w-5 text-[#2eaafd]" />
+              Date
+            </h2>
+
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="min-w-[260px] justify-start text-left font-medium bg-white/5 border-white/20 text-white hover:bg-white/10 hover:text-white"
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4 text-[#2eaafd]" />
+                    {formatDate(selectedDate)}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 bg-[#082644] border-white/10" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={d => { if (d) { setSelectedDate(d); setCalendarOpen(false) } }}
+                    initialFocus
+                    className="text-white [&_button]:text-white [&_button:hover]:bg-white/10 [&_button[aria-selected]]:bg-[#2eaafd] [&_button[aria-selected]]:text-white [&_button.day-outside]:text-white/30"
+                  />
+                </PopoverContent>
+              </Popover>
+
+              {loadingDate && (
+                <span className="flex items-center gap-2 text-sm text-white/50">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+                </span>
+              )}
+              {!loadingDate && anyExisting && (
+                <span className="flex items-center gap-2 text-sm bg-amber-500/10 text-amber-300 border border-amber-500/30 rounded-lg px-3 py-1.5">
+                  <RefreshCw className="h-4 w-4 shrink-0" />
+                  Existing trivia found — submitting will replace it.
+                </span>
+              )}
+              {!loadingDate && hasExisting && !anyExisting && (
+                <span className="flex items-center gap-2 text-sm text-emerald-400 font-medium">
+                  <CheckCircle2 className="h-4 w-4" /> No trivia yet for this date.
+                </span>
+              )}
+            </div>
+          </section>
+
+          {/* ══════════════════════════════════════════════════════════════════ */}
+          {/* DAILY QUEST                                                        */}
+          {/* ══════════════════════════════════════════════════════════════════ */}
+          <section className="rounded-2xl shadow-xl border border-white/10 p-6 mb-6" style={{ backgroundColor: "#082644" }}>
+            <div className="mb-5">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">🏆</span>
+                <h2 className="text-xl font-bold text-white">Daily Quest</h2>
+                <span className="ml-auto text-sm text-white/50">
+                  {dqQuestions.filter(q => q.text && q.answersDb && q.answer).length}/5 ready
+                </span>
+              </div>
+              <p className="text-white/50 text-sm mt-1">Five questions — each needs a question, category, and answer.</p>
+            </div>
+
+            <Accordion type="multiple" className="space-y-2">
+              {dqQuestions.map((q, i) => {
+                const ready = !!(q.text && q.answersDb && q.answer)
+                return (
+                  <AccordionItem
+                    key={i}
+                    value={`dq-${i}`}
+                    className="border border-white/10 rounded-xl overflow-visible"
+                  >
+                    <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-white/5 rounded-xl text-white [&>svg]:text-white/50">
+                      <div className="flex items-center gap-3">
+                        <span className="font-semibold text-white">Question {i + 1}</span>
+                        {ready
+                          ? <span className="text-xs font-medium text-emerald-400 bg-emerald-500/15 border border-emerald-500/25 rounded-full px-2 py-0.5">Ready</span>
+                          : <span className="text-xs font-medium text-amber-400 bg-amber-500/15 border border-amber-500/25 rounded-full px-2 py-0.5">Incomplete</span>
+                        }
+                        {q.text && <span className="text-sm text-white/30 truncate max-w-[200px]">{q.text}</span>}
+                      </div>
                     </AccordionTrigger>
-                    <AccordionContent>
-                      <div className="flex flex-col gap-3">
-                        <Label>Question Text</Label>
-                        <Input
-                          placeholder="Enter trivia question"
-                          value={q.question}
-                          onChange={e => {
-                            const updated = [...dailyQuestQuestions]
-                            updated[i].question = e.target.value
-                            setDailyQuestQuestions(updated)
-                          }}
-                        />
-                        <Label>Answer Category</Label>
-                        <Select
-                          value={q.category}
-                          onValueChange={async (value) => {
-                            const updated = [...dailyQuestQuestions]
-                            updated[i].category = value
-                            setDailyQuestQuestions(updated)
-                            // preload suggestions for this category into cache
-                            const db = mapCategoryToDb(value)
-                            if (db) await fetchAllNames(db, (b) => setDailyQuestLoading(l => { const arr = [...l]; arr[i] = b; return arr }))
-                          }}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select answer category" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {ANSWER_CATEGORIES.map((cat) => (
-                              <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Label>Answer</Label>
-                        <AutocompleteInput
-                          value={dailyQuestAnswers[i]}
-                          onChange={val => {
-                            const updated = [...dailyQuestAnswers]
-                            updated[i] = val
-                            setDailyQuestAnswers(updated)
-                          }}
-                          onSelect={val => {
-                            const updated = [...dailyQuestAnswers]
-                            updated[i] = val
-                            setDailyQuestAnswers(updated)
-                          }}
-                          suggestions={suggestionsByDb[mapCategoryToDb(q.category)] || []}
-                          placeholder="Type or select an answer"
-                          loading={dailyQuestLoading[i]}
-                          exactMatch
-                        />
+                    <AccordionContent className="px-4 pb-4 pt-2 overflow-visible">
+                      <div className="p-4 rounded-xl bg-white/5 border border-white/10 flex flex-col gap-4">
+                        <div>
+                          <Label className="mb-1.5 block text-sm font-medium text-white/80">Question Text</Label>
+                          <Textarea
+                            placeholder="e.g. Who holds the NFL record for most passing yards in a single season?"
+                            value={q.text}
+                            onChange={e => setDQ(i, { text: e.target.value })}
+                            rows={2}
+                            className={`resize-none ${DARK_INPUT}`}
+                          />
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <Label className="mb-1.5 block text-sm font-medium text-white/80">Answer Category</Label>
+                            <Select
+                              value={q.answersDb}
+                              onValueChange={db => {
+                                setDQ(i, { answersDb: db, answer: "" })
+                                fetchNames(db)
+                              }}
+                            >
+                              <SelectTrigger className={DARK_TRIGGER}>
+                                <SelectValue placeholder="Select category…" />
+                              </SelectTrigger>
+                              <SelectContent className={DARK_CONTENT}>
+                                {DB_CATEGORIES.map(c => (
+                                  <SelectItem key={c.value} value={c.value} className={DARK_ITEM}>{c.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label className="mb-1.5 block text-sm font-medium text-white/80">Correct Answer</Label>
+                            <AutocompleteInput
+                              value={q.answer}
+                              onChange={val => setDQ(i, { answer: val })}
+                              onSelect={val => setDQ(i, { answer: val })}
+                              suggestions={cache[q.answersDb] || []}
+                              placeholder={q.answersDb ? "Start typing…" : "Select a category first"}
+                              disabled={!q.answersDb}
+                              exactMatch
+                              className={DARK_INPUT}
+                            />
+                          </div>
+                        </div>
                       </div>
                     </AccordionContent>
                   </AccordionItem>
-                ))}
-              </Accordion>
-              <div className="flex justify-between mt-6">
-                <Button variant="outline" onClick={() => setStep(0)}>Back</Button>
-                <Button onClick={() => setStep(2)} disabled={dailyQuestQuestions.some((q, i) => !q.question || !q.category || !dailyQuestAnswers[i])}>Continue</Button>
-              </div>
-            </SectionCard>
-          )}
+                )
+              })}
+            </Accordion>
+          </section>
 
-          {/* Step 3: Fan Feud builder */}
-          {step === 2 && (
-            <SectionCard title="Step 3: Build Fan Feud" description="Enter the Fan Feud prompt and up to 8 ranked answers.">
-              <div className="flex flex-col gap-4">
-                <Label>Fan Feud Prompt</Label>
-                <Input
-                  placeholder="Enter Fan Feud question"
-                  value={fanFeudQuestion}
-                  onChange={e => setFanFeudQuestion(e.target.value)}
+          {/* ══════════════════════════════════════════════════════════════════ */}
+          {/* FAN FEUD                                                           */}
+          {/* ══════════════════════════════════════════════════════════════════ */}
+          <section className="rounded-2xl shadow-xl border border-white/10 p-6 mb-6" style={{ backgroundColor: "#082644" }}>
+            <div className="mb-5">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">🎯</span>
+                <h2 className="text-xl font-bold text-white">Fan Feud</h2>
+              </div>
+              <p className="text-white/50 text-sm mt-1">One question with 1–8 ranked answers. Top answer = rank 1.</p>
+            </div>
+
+            <div className="flex flex-col gap-4">
+              <div>
+                <Label className="mb-1.5 block text-sm font-medium text-white/80">Question</Label>
+                <Textarea
+                  placeholder="e.g. Name a player who has won both a Super Bowl and an MVP award."
+                  value={ffQuestion}
+                  onChange={e => setFfQuestion(e.target.value)}
+                  rows={2}
+                  className={`resize-none ${DARK_INPUT}`}
                 />
-                <Label>Answer Category</Label>
+              </div>
+
+              <div>
+                <Label className="mb-1.5 block text-sm font-medium text-white/80">Answer Category</Label>
                 <Select
-                  value={fanFeudCategory}
-                  onValueChange={async (val) => {
-                    setFanFeudCategory(val)
-                    const db = mapCategoryToDb(val)
-                    if (db) setFanFeudSuggestions(await fetchAllNames(db, setFanFeudLoading))
-                  }}
+                  value={ffDb}
+                  onValueChange={db => { setFfDb(db); setFfAnswers(Array(8).fill("")); fetchNames(db) }}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select answer category" />
+                  <SelectTrigger className={`max-w-xs ${DARK_TRIGGER}`}>
+                    <SelectValue placeholder="Select category…" />
                   </SelectTrigger>
-                  <SelectContent>
-                    {ANSWER_CATEGORIES.map((cat) => (
-                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                  <SelectContent className={DARK_CONTENT}>
+                    {DB_CATEGORIES.map(c => (
+                      <SelectItem key={c.value} value={c.value} className={DARK_ITEM}>{c.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {fanFeudAnswers.map((answer, i) => (
-                    <div key={i} className="flex flex-col gap-1">
-                      <Label>Rank {i + 1}</Label>
+              </div>
+
+              <div>
+                <Label className="mb-2 block text-sm font-medium text-white/80">
+                  Answers{" "}
+                  <span className="text-white/40 font-normal">(rank 1 = most popular, leave trailing slots blank)</span>
+                </Label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {ffAnswers.map((answer, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-white/30 w-6 text-right shrink-0">#{i + 1}</span>
                       <AutocompleteInput
                         value={answer}
-                        onChange={val => {
-                          const updated = [...fanFeudAnswers]
-                          updated[i] = val
-                          setFanFeudAnswers(updated)
-                        }}
-                        onSelect={val => {
-                          const updated = [...fanFeudAnswers]
-                          updated[i] = val
-                          setFanFeudAnswers(updated)
-                        }}
-                        suggestions={fanFeudSuggestions}
-                        placeholder={`Answer ${i + 1}`}
-                        loading={fanFeudLoading}
+                        onChange={val => setFfAnswers(prev => prev.map((a, idx) => idx === i ? val : a))}
+                        onSelect={val => setFfAnswers(prev => prev.map((a, idx) => idx === i ? val : a))}
+                        suggestions={cache[ffDb] || []}
+                        placeholder={i === 0 ? "Most popular answer…" : `Rank ${i + 1}…`}
+                        disabled={!ffDb}
                         exactMatch
+                        className={DARK_INPUT}
                       />
                     </div>
                   ))}
                 </div>
               </div>
-              <div className="flex justify-between mt-6">
-                <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
-                <Button onClick={() => setStep(3)} disabled={!fanFeudQuestion || !fanFeudCategory || fanFeudAnswers.some(a => !a)}>
-                  Continue
-                </Button>
-              </div>
-            </SectionCard>
-          )}
+            </div>
+          </section>
 
-          {/* Step 4: Career Path builder */}
-          {step === 3 && (
-            <SectionCard title="Step 4: Build Career Path" description="Select a player and their career team path.">
-              <div className="flex flex-col gap-4">
-                <Label>Player Category</Label>
-                <Select
-                  value={careerPathCategory}
-                  onValueChange={async (val) => {
-                    setCareerPathCategory(val)
-                    // players db (e.g. nfl_players)
-                    const playersDb = mapCategoryToDb(val)
-                    // derive teams db from player category (e.g. nfl_teams)
-                    const teamsDb = (() => {
-                      switch (val) {
-                        case 'NFL Players': return 'nfl_teams'
-                        case 'NHL Players': return 'nhl_teams'
-                        case 'NBA Players': return 'nba_teams'
-                        default: return ''
-                      }
-                    })()
-                    if (playersDb) setCareerPathPlayerSuggestions(await fetchAllNames(playersDb, setCareerPathPlayerLoading))
-                    if (teamsDb) setCareerPathTeamSuggestions(await fetchAllNames(teamsDb, setCareerPathTeamLoading))
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select player category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CAREER_PLAYER_CATEGORIES.map((cat) => (
-                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Label>Player</Label>
-                <AutocompleteInput
-                  value={careerPathPlayer}
-                  onChange={setCareerPathPlayer}
-                  onSelect={setCareerPathPlayer}
-                  suggestions={careerPathPlayerSuggestions}
-                  placeholder="Enter player name"
-                  loading={careerPathPlayerLoading}
-                  exactMatch
-                />
-                <Label>Team Path (chronological)</Label>
+          {/* ══════════════════════════════════════════════════════════════════ */}
+          {/* CAREER PATH                                                        */}
+          {/* ══════════════════════════════════════════════════════════════════ */}
+          <section className="rounded-2xl shadow-xl border border-white/10 p-6 mb-6" style={{ backgroundColor: "#082644" }}>
+            <div className="mb-5">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">🗺️</span>
+                <h2 className="text-xl font-bold text-white">Career Path</h2>
+              </div>
+              <p className="text-white/50 text-sm mt-1">Pick a player and list teams in chronological order. Years are optional.</p>
+            </div>
+
+            <div className="flex flex-col gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label className="mb-1.5 block text-sm font-medium text-white/80">Sport</Label>
+                  <Select
+                    value={cpSport}
+                    onValueChange={sport => { setCpSport(sport); setCpPlayer(""); setCpTeams([{ ...BLANK_TEAM }]) }}
+                  >
+                    <SelectTrigger className={DARK_TRIGGER}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className={DARK_CONTENT}>
+                      {SPORT_OPTIONS.map(s => (
+                        <SelectItem key={s.label} value={s.label} className={DARK_ITEM}>{s.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="mb-1.5 block text-sm font-medium text-white/80">Player</Label>
+                  <AutocompleteInput
+                    value={cpPlayer}
+                    onChange={setCpPlayer}
+                    onSelect={setCpPlayer}
+                    suggestions={cache[cpPlayersDb] || []}
+                    placeholder="Start typing a player name…"
+                    exactMatch
+                    className={DARK_INPUT}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label className="mb-2 block text-sm font-medium text-white/80">
+                  Team Path{" "}
+                  <span className="text-white/40 font-normal">(chronological order)</span>
+                </Label>
                 <div className="flex flex-col gap-2">
-                  {careerPathTeams.map((team, i) => (
-                    <div key={i} className="flex gap-2 items-center">
-                      <AutocompleteInput
-                        value={team}
-                        onChange={val => {
-                          const updated = [...careerPathTeams]
-                          updated[i] = val
-                          setCareerPathTeams(updated)
-                        }}
-                        onSelect={val => {
-                          const updated = [...careerPathTeams]
-                          updated[i] = val
-                          setCareerPathTeams(updated)
-                        }}
-                        suggestions={careerPathTeamSuggestions}
-                        placeholder={`Team ${i + 1}`}
-                        loading={careerPathTeamLoading}
-                        exactMatch
+                  {cpTeams.map((team, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-white/30 w-6 text-right shrink-0">{i + 1}</span>
+                      <div className="flex-1">
+                        <AutocompleteInput
+                          value={team.name}
+                          onChange={val => setCpTeams(prev => prev.map((t, idx) => idx === i ? { ...t, name: val } : t))}
+                          onSelect={val => setCpTeams(prev => prev.map((t, idx) => idx === i ? { ...t, name: val } : t))}
+                          suggestions={cache[cpTeamsDb] || []}
+                          placeholder="Team name…"
+                          exactMatch
+                          className={DARK_INPUT}
+                        />
+                      </div>
+                      <Input
+                        value={team.years}
+                        onChange={e => setCpTeams(prev => prev.map((t, idx) => idx === i ? { ...t, years: e.target.value } : t))}
+                        placeholder="Years (e.g. 2018–2022)"
+                        className={`w-40 shrink-0 text-sm ${DARK_INPUT}`}
                       />
-                      {careerPathTeams.length > 1 && (
-                        <Button type="button" size="icon" variant="destructive" onClick={() => handleRemoveTeam(i)}>
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      )}
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="shrink-0 text-white/30 hover:text-red-400 hover:bg-red-500/10"
+                        disabled={cpTeams.length <= 1}
+                        onClick={() => setCpTeams(prev => prev.filter((_, idx) => idx !== i))}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   ))}
-                  <Button type="button" size="sm" className="mt-2 w-fit" onClick={handleAddTeam}>
-                    <Plus className="w-4 h-4 mr-1" /> Add Team
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-fit mt-1 bg-white/5 border-white/20 text-white hover:bg-white/10 hover:text-white"
+                    onClick={() => setCpTeams(prev => [...prev, { ...BLANK_TEAM }])}
+                  >
+                    <Plus className="h-4 w-4 mr-1.5" />
+                    Add Team
                   </Button>
                 </div>
               </div>
-              <div className="flex justify-between mt-6">
-                <Button variant="outline" onClick={() => setStep(2)}>Back</Button>
-                <Button onClick={() => setStep(4)} disabled={!careerPathCategory || !careerPathPlayer || careerPathTeams.some(t => !t)}>
-                  Continue
-                </Button>
-              </div>
-            </SectionCard>
-          )}
+            </div>
+          </section>
 
-          {/* Step 5: Review & Publish */}
-          {step === 4 && (
-            <SectionCard title="Step 5: Review & Publish" description="Review your trivia content and publish.">
-              <div className="flex flex-col gap-4">
-                <ReviewCard title="Date">
-                  <div>{selectedDate?.toLocaleDateString()}</div>
-                </ReviewCard>
-                <ReviewCard title="Daily Quest Questions">
-                  <ol className="list-decimal ml-6">
-                    {dailyQuestQuestions.map((q, i) => (
-                      <li key={i} className="mb-1">
-                        <span className="font-semibold">{q.question}</span> <span className="text-blue-700">[{q.category}]</span> <span className="text-green-700">Answer: {dailyQuestAnswers[i]}</span>
-                      </li>
-                    ))}
-                  </ol>
-                </ReviewCard>
-                <ReviewCard title="Fan Feud">
-                  <div className="font-semibold mb-1">{fanFeudQuestion}</div>
-                  <div className="text-blue-700 mb-2">[{fanFeudCategory}]</div>
-                  <ol className="list-decimal ml-6">
-                    {fanFeudAnswers.map((a, i) => (
-                      <li key={i}>{a}</li>
-                    ))}
-                  </ol>
-                </ReviewCard>
-                <ReviewCard title="Career Path">
-                  <div className="font-semibold mb-1">{careerPathPlayer}</div>
-                  <div className="text-blue-700 mb-2">[{careerPathCategory}]</div>
-                  <div className="flex flex-wrap gap-2">
-                    {careerPathTeams.map((t, i) => (
-                      <span key={i} className="bg-blue-100 text-blue-900 px-3 py-1 rounded-full font-medium">{t}</span>
-                    ))}
-                  </div>
-                </ReviewCard>
+          {/* ══════════════════════════════════════════════════════════════════ */}
+          {/* SUBMIT                                                             */}
+          {/* ══════════════════════════════════════════════════════════════════ */}
+          <section className="rounded-2xl shadow-xl border border-white/10 p-6" style={{ backgroundColor: "#082644" }} id="error-summary">
+            {errors.length > 0 && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-5">
+                <div className="flex items-center gap-2 mb-2">
+                  <AlertCircle className="h-4 w-4 text-red-400 shrink-0" />
+                  <span className="font-semibold text-red-300">Please fix before submitting:</span>
+                </div>
+                <ul className="list-disc list-inside space-y-1">
+                  {errors.map((e, i) => (
+                    <li key={i} className="text-sm text-red-400">{e}</li>
+                  ))}
+                </ul>
               </div>
-              <div className="flex justify-between mt-6">
-                <Button variant="outline" onClick={() => setStep(3)}>Back to Edit</Button>
-                <Button onClick={handlePublish} loading={submitting} className="bg-[#2a569c] hover:bg-[#1e4070] text-white font-bold text-lg">
-                  Publish Trivia for {selectedDate?.toLocaleDateString()}
-                </Button>
+            )}
+
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="text-sm text-white/50">
+                Saving trivia for{" "}
+                <span className="font-semibold text-white">{formatDate(selectedDate)}</span>
+                {anyExisting && <span className="text-amber-400"> — will replace existing</span>}
               </div>
-            </SectionCard>
-          )}
+              <Button
+                onClick={handleSubmit}
+                disabled={submitting}
+                className="bg-[#2a569c] hover:bg-[#1e4070] text-white font-bold text-base px-8 h-11"
+              >
+                {submitting ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving…</>
+                ) : anyExisting ? (
+                  "Replace Trivia"
+                ) : (
+                  "Publish Trivia"
+                )}
+              </Button>
+            </div>
+          </section>
+
         </div>
       </div>
-      <Footer />
     </>
   )
 }
