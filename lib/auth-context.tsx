@@ -99,7 +99,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       });
 
       if (!res.ok) {
-        logout();
+        // Only log the user out when the refresh token itself is invalid or
+        // expired (401). For server errors (5xx) or transient network issues we
+        // intentionally do NOT call logout() — the user's existing token may
+        // still be valid and we should not kick them out for a brief outage.
+        if (res.status === 401) {
+          logout();
+        }
         return false;
       }
 
@@ -121,10 +127,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         return true;
       }
 
-      logout();
+      // Got 200 but no accessToken in the body — unexpected server response.
+      // Don't logout; the current token may still be valid.
       return false;
     } catch {
-      logout();
+      // Network error (fetch threw). Don't logout — this is a transient failure.
+      // The auto-refresh timer will retry before the next expiry.
       return false;
     }
   }, [logout]);
@@ -180,7 +188,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       if (parsedUser?.isAdmin) setAdminCookie(); else clearAdminCookie();
       setIsHydrated(true);
     } else if (token && isTokenExpired(token)) {
-      // Try a silent refresh; mark hydrated after either outcome
+      // Access token is expired. Try a silent refresh using the httpOnly
+      // refreshToken cookie. If refresh fails for a transient reason, we keep
+      // whatever user object is in localStorage so the UI stays consistent
+      // (isAuthenticated stays false, but data is preserved for the retry on
+      // the next page load or explicit action). refreshToken() now only calls
+      // logout() on a true 401, so no state is destroyed on transient failures.
       refreshToken().finally(() => setIsHydrated(true));
     } else {
       setIsHydrated(true);
