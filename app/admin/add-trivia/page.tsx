@@ -23,9 +23,11 @@ const Calendar = dynamic(() => import("@/components/ui/calendar").then(m => m.Ca
 
 type DQQuestion = { text: string; answer: string; answersDb: string }
 type CPTeam     = { name: string; years: string }
+type DcPick     = { round: string; pickOverall: string; position: string; playerName: string; college: string }
 
 const BLANK_DQ: DQQuestion = { text: "", answer: "", answersDb: "" }
 const BLANK_TEAM: CPTeam   = { name: "", years: "" }
+const BLANK_PICK: DcPick   = { round: "", pickOverall: "", position: "", playerName: "", college: "" }
 
 // ─── Category helpers ─────────────────────────────────────────────────────────
 
@@ -102,7 +104,7 @@ function AddTriviaContent() {
 
   // Loading / existing data status
   const [loadingDate, setLoadingDate] = useState(false)
-  const [hasExisting, setHasExisting] = useState<{ dq: boolean; ff: boolean; cp: boolean } | null>(null)
+  const [hasExisting, setHasExisting] = useState<{ dq: boolean; ff: boolean; cp: boolean; dc: boolean } | null>(null)
 
   // Suggestions cache: dbKey → string[]
   const [cache, setCache] = useState<Record<string, string[]>>({})
@@ -138,6 +140,14 @@ function AddTriviaContent() {
   const [cpPlayer, setCpPlayer] = useState("")
   const [cpTeams,  setCpTeams]  = useState<CPTeam[]>([{ ...BLANK_TEAM }])
 
+  // ── Draft Class ───────────────────────────────────────────────────────────────
+  const [dcTeam,  setDcTeam]  = useState("")
+  const [dcYear,  setDcYear]  = useState("")
+  const [dcPicks, setDcPicks] = useState<DcPick[]>([{ ...BLANK_PICK }])
+
+  const updateDcPick = (i: number, patch: Partial<DcPick>) =>
+    setDcPicks(prev => prev.map((p, idx) => idx === i ? { ...p, ...patch } : p))
+
   const cpSportOpt  = SPORT_OPTIONS.find(s => s.label === cpSport) || SPORT_OPTIONS[0]
   const cpPlayersDb = cpSportOpt.players
   const cpTeamsDb   = cpSportOpt.teams
@@ -170,7 +180,8 @@ function AddTriviaContent() {
         const hasDQ = !!(data.dailyQuest?.length)
         const hasFF = !!data.fanFeud
         const hasCP = !!data.careerPath
-        setHasExisting({ dq: hasDQ, ff: hasFF, cp: hasCP })
+        const hasDC = !!data.draftClass
+        setHasExisting({ dq: hasDQ, ff: hasFF, cp: hasCP, dc: hasDC })
 
         setDqQuestions(Array(5).fill(null).map((_, i) => {
           const q = data.dailyQuest?.[i]
@@ -194,6 +205,23 @@ function AddTriviaContent() {
           )
         } else {
           setCpPlayer(""); setCpTeams([{ ...BLANK_TEAM }])
+        }
+
+        if (hasDC) {
+          setDcTeam(data.draftClass.teamName || "")
+          setDcYear(String(data.draftClass.year || ""))
+          setDcPicks(data.draftClass.picks?.length
+            ? data.draftClass.picks.map((p: any) => ({
+                round:       String(p.round       || ""),
+                pickOverall: String(p.pickOverall  || ""),
+                position:    p.position   || "",
+                playerName:  p.playerName || "",
+                college:     p.college    || "",
+              }))
+            : [{ ...BLANK_PICK }]
+          )
+        } else {
+          setDcTeam(""); setDcYear(""); setDcPicks([{ ...BLANK_PICK }])
         }
       } catch {
         // silently ignore
@@ -245,6 +273,17 @@ function AddTriviaContent() {
           dailyQuestions: dqQuestions.map(q => ({ text: q.text.trim(), answer: q.answer.trim(), answersDb: q.answersDb })),
           fanFeud: { question: ffQuestion.trim(), answersDb: ffDb, answers: ffAnswers.map(a => a.trim()) },
           careerPath: { playerName: cpPlayer.trim(), answersTable: cpPlayersDb, teams: cpTeams.map(t => ({ name: t.name.trim(), years: t.years.trim() })) },
+          draftClass: dcTeam.trim() ? {
+            teamName: dcTeam.trim(),
+            year:     parseInt(dcYear) || new Date().getFullYear(),
+            picks:    dcPicks.filter(p => p.round && p.pickOverall).map(p => ({
+              round:       parseInt(p.round),
+              pickOverall: parseInt(p.pickOverall),
+              position:    p.position.trim(),
+              playerName:  p.playerName.trim(),
+              college:     p.college.trim() || null,
+            })),
+          } : null,
         }),
       })
 
@@ -255,7 +294,7 @@ function AddTriviaContent() {
       }
 
       setSubmitSuccess(true)
-      setHasExisting({ dq: true, ff: true, cp: true })
+      setHasExisting({ dq: true, ff: true, cp: true, dc: !!dcTeam.trim() })
       toast({ title: "Trivia published!", description: `Saved for ${formatDate(selectedDate)}.` })
       window.scrollTo({ top: 0, behavior: "smooth" })
     } catch (e: unknown) {
@@ -270,7 +309,7 @@ function AddTriviaContent() {
   // Dark-themed input class used on every text input/textarea in this page
   const DARK_INPUT = "bg-white/5 border-white/20 text-white placeholder:text-white/30 focus-visible:border-white/50 focus-visible:ring-white/20"
 
-  const anyExisting = hasExisting && (hasExisting.dq || hasExisting.ff || hasExisting.cp)
+  const anyExisting = hasExisting && (hasExisting.dq || hasExisting.ff || hasExisting.cp || hasExisting.dc)
 
   // ─── Render ───────────────────────────────────────────────────────────────────
   return (
@@ -591,6 +630,133 @@ function AddTriviaContent() {
                   >
                     <Plus className="h-4 w-4 mr-1.5" />
                     Add Team
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* ══════════════════════════════════════════════════════════════════ */}
+          {/* DRAFT CLASS                                                        */}
+          {/* ══════════════════════════════════════════════════════════════════ */}
+          <section className="rounded-2xl shadow-xl border border-white/10 p-6 mb-6" style={{ backgroundColor: "#082644" }}>
+            <div className="mb-5">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">📋</span>
+                <h2 className="text-xl font-bold text-white">Draft Class</h2>
+                <span className="ml-2 text-xs text-white/30 border border-white/10 rounded-full px-2 py-0.5">Optional</span>
+              </div>
+              <p className="text-white/50 text-sm mt-1">Enter a team, draft year, and their picks. Leave blank to skip.</p>
+            </div>
+
+            <div className="flex flex-col gap-4">
+              {/* Team + Year row */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label className="mb-1.5 block text-sm font-medium text-white/80">NFL Team</Label>
+                  <AutocompleteInput
+                    value={dcTeam}
+                    onChange={setDcTeam}
+                    onSelect={setDcTeam}
+                    suggestions={cache["nfl_teams"] || []}
+                    placeholder="e.g. New Orleans Saints"
+                    exactMatch
+                    className={DARK_INPUT}
+                  />
+                </div>
+                <div>
+                  <Label className="mb-1.5 block text-sm font-medium text-white/80">Draft Year</Label>
+                  <Input
+                    value={dcYear}
+                    onChange={e => setDcYear(e.target.value)}
+                    placeholder="e.g. 2019"
+                    type="number"
+                    min="1936"
+                    max={new Date().getFullYear()}
+                    className={DARK_INPUT}
+                  />
+                </div>
+              </div>
+
+              {/* Picks */}
+              <div>
+                <Label className="mb-2 block text-sm font-medium text-white/80">
+                  Draft Picks
+                  <span className="text-white/40 font-normal ml-1">(round, overall pick, position, player)</span>
+                </Label>
+
+                {/* Header row */}
+                <div className="hidden sm:flex items-center gap-2 mb-1 px-1">
+                  <span className="text-[10px] font-medium text-white/30 uppercase w-6 shrink-0" />
+                  <span className="text-[10px] font-medium text-white/30 uppercase w-14 shrink-0">Rd</span>
+                  <span className="text-[10px] font-medium text-white/30 uppercase w-20 shrink-0">Pick #</span>
+                  <span className="text-[10px] font-medium text-white/30 uppercase w-20 shrink-0">Pos</span>
+                  <span className="text-[10px] font-medium text-white/30 uppercase flex-1">Player Name</span>
+                  <span className="text-[10px] font-medium text-white/30 uppercase w-32 shrink-0">College</span>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  {dcPicks.map((pick, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-white/30 w-6 text-right shrink-0">{i + 1}</span>
+                      <Input
+                        value={pick.round}
+                        onChange={e => updateDcPick(i, { round: e.target.value })}
+                        placeholder="Rd"
+                        type="number"
+                        min="1"
+                        max="7"
+                        className={`w-14 shrink-0 text-sm ${DARK_INPUT}`}
+                      />
+                      <Input
+                        value={pick.pickOverall}
+                        onChange={e => updateDcPick(i, { pickOverall: e.target.value })}
+                        placeholder="Pick"
+                        type="number"
+                        min="1"
+                        max="262"
+                        className={`w-20 shrink-0 text-sm ${DARK_INPUT}`}
+                      />
+                      <Input
+                        value={pick.position}
+                        onChange={e => updateDcPick(i, { position: e.target.value })}
+                        placeholder="QB"
+                        className={`w-20 shrink-0 text-sm ${DARK_INPUT}`}
+                      />
+                      <Input
+                        value={pick.playerName}
+                        onChange={e => updateDcPick(i, { playerName: e.target.value })}
+                        placeholder="Player name…"
+                        className={`flex-1 min-w-0 text-sm ${DARK_INPUT}`}
+                      />
+                      <Input
+                        value={pick.college}
+                        onChange={e => updateDcPick(i, { college: e.target.value })}
+                        placeholder="College"
+                        className={`w-28 shrink-0 text-sm ${DARK_INPUT}`}
+                      />
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="shrink-0 text-white/30 hover:text-red-400 hover:bg-red-500/10"
+                        disabled={dcPicks.length <= 1}
+                        onClick={() => setDcPicks(prev => prev.filter((_, idx) => idx !== i))}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-fit mt-1 bg-white/5 border-white/20 text-white hover:bg-white/10 hover:text-white"
+                    onClick={() => setDcPicks(prev => [...prev, { ...BLANK_PICK }])}
+                  >
+                    <Plus className="h-4 w-4 mr-1.5" />
+                    Add Pick
                   </Button>
                 </div>
               </div>
