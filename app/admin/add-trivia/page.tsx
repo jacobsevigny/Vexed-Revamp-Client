@@ -14,6 +14,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { useToast } from "@/hooks/use-toast"
 import { CalendarIcon, Plus, Trash2, CheckCircle2, AlertCircle, Loader2, RefreshCw } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
+import { authFetch } from "@/lib/api"
 import { useRouter } from "next/navigation"
 
 const Calendar = dynamic(() => import("@/components/ui/calendar").then(m => m.Calendar), { ssr: false })
@@ -161,7 +162,7 @@ function AddTriviaContent() {
       setLoadingDate(true)
       setHasExisting(null)
       try {
-        const res = await fetch(`/api/admin/trivia-by-date?date=${dateStr}`)
+        const res = await authFetch(`/api/admin/trivia-by-date?date=${dateStr}`)
         if (cancelled || !res.ok) return
         const data = await res.json()
         if (cancelled) return
@@ -236,13 +237,9 @@ function AddTriviaContent() {
     }
     setSubmitting(true)
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null
-      const headers: Record<string, string> = { "Content-Type": "application/json" }
-      if (token) headers["Authorization"] = `Bearer ${token}`
-
-      const res = await fetch("/api/admin/add-questions", {
+      const res = await authFetch("/api/admin/add-questions", {
         method: "POST",
-        headers,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           date: dateStr,
           dailyQuestions: dqQuestions.map(q => ({ text: q.text.trim(), answer: q.answer.trim(), answersDb: q.answersDb })),
