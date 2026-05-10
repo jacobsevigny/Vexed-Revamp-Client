@@ -14,6 +14,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { useToast } from "@/hooks/use-toast"
 import { CalendarIcon, Plus, Trash2, CheckCircle2, AlertCircle, Loader2, RefreshCw } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
+import { authFetch } from "@/lib/api"
 import { useRouter } from "next/navigation"
 
 const Calendar = dynamic(() => import("@/components/ui/calendar").then(m => m.Calendar), { ssr: false })
@@ -22,9 +23,11 @@ const Calendar = dynamic(() => import("@/components/ui/calendar").then(m => m.Ca
 
 type DQQuestion = { text: string; answer: string; answersDb: string }
 type CPTeam     = { name: string; years: string }
+type DcPick     = { round: string; pickOverall: string; position: string; playerName: string; college: string }
 
 const BLANK_DQ: DQQuestion = { text: "", answer: "", answersDb: "" }
 const BLANK_TEAM: CPTeam   = { name: "", years: "" }
+const BLANK_PICK: DcPick   = { round: "", pickOverall: "", position: "", playerName: "", college: "" }
 
 // ─── Category helpers ─────────────────────────────────────────────────────────
 
@@ -64,6 +67,30 @@ const DARK_TRIGGER = "w-full bg-white/5 border-white/20 text-white hover:bg-whit
 const DARK_CONTENT = "bg-[#0a2d52] border-white/20 text-white"
 const DARK_ITEM    = "text-white focus:bg-white/10 focus:text-white data-[highlighted]:bg-white/10"
 
+// ─── Per-section state ────────────────────────────────────────────────────────
+// "empty"    → all fields blank, section is skipped (no errors shown)
+// "partial"  → some fields filled but not all required ones → show errors
+// "complete" → all required fields present → will be submitted
+type SectionState = "empty" | "partial" | "complete"
+
+function SectionBadge({ state }: { state: SectionState }) {
+  if (state === "complete") return (
+    <span className="text-xs font-medium text-emerald-400 bg-emerald-500/15 border border-emerald-500/25 rounded-full px-2 py-0.5">
+      Ready
+    </span>
+  )
+  if (state === "partial") return (
+    <span className="text-xs font-medium text-amber-400 bg-amber-500/15 border border-amber-500/25 rounded-full px-2 py-0.5">
+      Incomplete
+    </span>
+  )
+  return (
+    <span className="text-xs font-medium text-white/30 bg-white/5 border border-white/10 rounded-full px-2 py-0.5">
+      Skipped
+    </span>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 // Guard wrapper — keeps all hooks in the inner component so there are no
@@ -101,7 +128,7 @@ function AddTriviaContent() {
 
   // Loading / existing data status
   const [loadingDate, setLoadingDate] = useState(false)
-  const [hasExisting, setHasExisting] = useState<{ dq: boolean; ff: boolean; cp: boolean } | null>(null)
+  const [hasExisting, setHasExisting] = useState<{ dq: boolean; ff: boolean; cp: boolean; dc: boolean } | null>(null)
 
   // Suggestions cache: dbKey → string[]
   const [cache, setCache] = useState<Record<string, string[]>>({})
@@ -137,6 +164,14 @@ function AddTriviaContent() {
   const [cpPlayer, setCpPlayer] = useState("")
   const [cpTeams,  setCpTeams]  = useState<CPTeam[]>([{ ...BLANK_TEAM }])
 
+  // ── Draft Class ───────────────────────────────────────────────────────────────
+  const [dcTeam,  setDcTeam]  = useState("")
+  const [dcYear,  setDcYear]  = useState("")
+  const [dcPicks, setDcPicks] = useState<DcPick[]>([{ ...BLANK_PICK }])
+
+  const updateDcPick = (i: number, patch: Partial<DcPick>) =>
+    setDcPicks(prev => prev.map((p, idx) => idx === i ? { ...p, ...patch } : p))
+
   const cpSportOpt  = SPORT_OPTIONS.find(s => s.label === cpSport) || SPORT_OPTIONS[0]
   const cpPlayersDb = cpSportOpt.players
   const cpTeamsDb   = cpSportOpt.teams
@@ -161,7 +196,7 @@ function AddTriviaContent() {
       setLoadingDate(true)
       setHasExisting(null)
       try {
-        const res = await fetch(`/api/admin/trivia-by-date?date=${dateStr}`)
+        const res = await authFetch(`/api/admin/trivia-by-date?date=${dateStr}`)
         if (cancelled || !res.ok) return
         const data = await res.json()
         if (cancelled) return
@@ -169,7 +204,8 @@ function AddTriviaContent() {
         const hasDQ = !!(data.dailyQuest?.length)
         const hasFF = !!data.fanFeud
         const hasCP = !!data.careerPath
-        setHasExisting({ dq: hasDQ, ff: hasFF, cp: hasCP })
+        const hasDC = !!data.draftClass
+        setHasExisting({ dq: hasDQ, ff: hasFF, cp: hasCP, dc: hasDC })
 
         setDqQuestions(Array(5).fill(null).map((_, i) => {
           const q = data.dailyQuest?.[i]
@@ -194,6 +230,23 @@ function AddTriviaContent() {
         } else {
           setCpPlayer(""); setCpTeams([{ ...BLANK_TEAM }])
         }
+
+        if (hasDC) {
+          setDcTeam(data.draftClass.teamName || "")
+          setDcYear(String(data.draftClass.year || ""))
+          setDcPicks(data.draftClass.picks?.length
+            ? data.draftClass.picks.map((p: any) => ({
+                round:       String(p.round       || ""),
+                pickOverall: String(p.pickOverall  || ""),
+                position:    p.position   || "",
+                playerName:  p.playerName || "",
+                college:     p.college    || "",
+              }))
+            : [{ ...BLANK_PICK }]
+          )
+        } else {
+          setDcTeam(""); setDcYear(""); setDcPicks([{ ...BLANK_PICK }])
+        }
       } catch {
         // silently ignore
       } finally {
@@ -205,21 +258,69 @@ function AddTriviaContent() {
     return () => { cancelled = true }
   }, [dateStr])
 
+  // ── Per-section state (derived from current field values) ────────────────────
+  // Each section is independently validated. Empty sections are skipped entirely.
+
+  const dqHasAny    = dqQuestions.some(q => q.text.trim() || q.answersDb || q.answer.trim())
+  const dqAllReady  = dqQuestions.every(q => q.text.trim() && q.answersDb && q.answer.trim())
+  const dqSectionState: SectionState = !dqHasAny ? "empty" : dqAllReady ? "complete" : "partial"
+  const dqSectionErrors: string[] = dqSectionState === "partial"
+    ? dqQuestions.flatMap((q, i) => [
+        !q.text.trim()   ? `Daily Quest Q${i + 1}: question text required` : "",
+        !q.answersDb     ? `Daily Quest Q${i + 1}: answer category required` : "",
+        !q.answer.trim() ? `Daily Quest Q${i + 1}: answer required` : "",
+      ]).filter(Boolean)
+    : []
+
+  const ffHasAny       = !!(ffQuestion.trim() || ffDb || ffAnswers.some(a => a.trim()))
+  const ffComplete     = !!(ffQuestion.trim() && ffDb && ffAnswers.some(a => a.trim()))
+  const ffSectionState: SectionState = !ffHasAny ? "empty" : ffComplete ? "complete" : "partial"
+  const ffSectionErrors: string[] = ffSectionState === "partial"
+    ? [
+        !ffQuestion.trim()             ? "Fan Feud: question required" : "",
+        !ffDb                          ? "Fan Feud: answer category required" : "",
+        !ffAnswers.some(a => a.trim()) ? "Fan Feud: at least one answer required" : "",
+      ].filter(Boolean)
+    : []
+
+  const cpHasAny       = !!(cpPlayer.trim() || cpTeams.some(t => t.name.trim()))
+  const cpComplete     = !!(cpPlayer.trim() && cpTeams.some(t => t.name.trim()))
+  const cpSectionState: SectionState = !cpHasAny ? "empty" : cpComplete ? "complete" : "partial"
+  const cpSectionErrors: string[] = cpSectionState === "partial"
+    ? [
+        !cpPlayer.trim()                      ? "Career Path: player name required" : "",
+        !cpTeams.some(t => t.name.trim())     ? "Career Path: at least one team required" : "",
+      ].filter(Boolean)
+    : []
+
+  const dcHasAny       = !!(dcTeam.trim() || dcYear.trim() || dcPicks.some(p => p.round || p.pickOverall || p.playerName))
+  const dcYearValid    = !!(dcYear.trim() && !isNaN(parseInt(dcYear)))
+  const dcComplete     = !!(dcTeam.trim() && dcYearValid && dcPicks.some(p => p.round && p.pickOverall))
+  const dcSectionState: SectionState = !dcHasAny ? "empty" : dcComplete ? "complete" : "partial"
+  const dcSectionErrors: string[] = dcSectionState === "partial"
+    ? [
+        !dcTeam.trim()                             ? "Draft Class: team name required" : "",
+        !dcYearValid                               ? "Draft Class: valid draft year required" : "",
+        !dcPicks.some(p => p.round && p.pickOverall) ? "Draft Class: at least one pick required" : "",
+      ].filter(Boolean)
+    : []
+
   // ── Validation ───────────────────────────────────────────────────────────────
   const [errors, setErrors] = useState<string[]>([])
 
   const validate = (): boolean => {
-    const errs: string[] = []
-    dqQuestions.forEach((q, i) => {
-      if (!q.text.trim())   errs.push(`Daily Quest Q${i + 1}: question text required`)
-      if (!q.answersDb)     errs.push(`Daily Quest Q${i + 1}: answer category required`)
-      if (!q.answer.trim()) errs.push(`Daily Quest Q${i + 1}: answer required`)
-    })
-    if (!ffQuestion.trim()) errs.push("Fan Feud: question required")
-    if (!ffDb)              errs.push("Fan Feud: answer category required")
-    if (!ffAnswers.some(a => a.trim())) errs.push("Fan Feud: at least one answer required")
-    if (!cpPlayer.trim())   errs.push("Career Path: player name required")
-    if (!cpTeams.some(t => t.name.trim())) errs.push("Career Path: at least one team required")
+    // Collect errors only from partial (partially-filled) sections.
+    // Empty sections are silently skipped. Complete sections need no errors listed.
+    const errs = [
+      ...dqSectionErrors,
+      ...ffSectionErrors,
+      ...cpSectionErrors,
+      ...dcSectionErrors,
+    ]
+    const hasComplete =
+      dqSectionState === "complete" || ffSectionState === "complete" ||
+      cpSectionState === "complete" || dcSectionState === "complete"
+    if (!hasComplete) errs.unshift("Complete at least one game section before publishing.")
     setErrors(errs)
     return errs.length === 0
   }
@@ -236,19 +337,48 @@ function AddTriviaContent() {
     }
     setSubmitting(true)
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null
-      const headers: Record<string, string> = { "Content-Type": "application/json" }
-      if (token) headers["Authorization"] = `Bearer ${token}`
+      // Only include sections that are fully complete — skip empty/partial ones.
+      const payload: Record<string, unknown> = { date: dateStr }
 
-      const res = await fetch("/api/admin/add-questions", {
+      if (dqSectionState === "complete") {
+        payload.dailyQuestions = dqQuestions.map(q => ({
+          text:      q.text.trim(),
+          answer:    q.answer.trim(),
+          answersDb: q.answersDb,
+        }))
+      }
+      if (ffSectionState === "complete") {
+        payload.fanFeud = {
+          question:  ffQuestion.trim(),
+          answersDb: ffDb,
+          answers:   ffAnswers.map(a => a.trim()),
+        }
+      }
+      if (cpSectionState === "complete") {
+        payload.careerPath = {
+          playerName:   cpPlayer.trim(),
+          answersTable: cpPlayersDb,
+          teams:        cpTeams.map(t => ({ name: t.name.trim(), years: t.years.trim() })),
+        }
+      }
+      if (dcSectionState === "complete") {
+        payload.draftClass = {
+          teamName: dcTeam.trim(),
+          year:     parseInt(dcYear),
+          picks:    dcPicks.filter(p => p.round && p.pickOverall).map(p => ({
+            round:       parseInt(p.round),
+            pickOverall: parseInt(p.pickOverall),
+            position:    p.position.trim(),
+            playerName:  p.playerName.trim(),
+            college:     p.college.trim() || null,
+          })),
+        }
+      }
+
+      const res = await authFetch("/api/admin/add-questions", {
         method: "POST",
-        headers,
-        body: JSON.stringify({
-          date: dateStr,
-          dailyQuestions: dqQuestions.map(q => ({ text: q.text.trim(), answer: q.answer.trim(), answersDb: q.answersDb })),
-          fanFeud: { question: ffQuestion.trim(), answersDb: ffDb, answers: ffAnswers.map(a => a.trim()) },
-          careerPath: { playerName: cpPlayer.trim(), answersTable: cpPlayersDb, teams: cpTeams.map(t => ({ name: t.name.trim(), years: t.years.trim() })) },
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       })
 
       if (!res.ok) {
@@ -257,9 +387,21 @@ function AddTriviaContent() {
         return
       }
 
+      const savedGames = [
+        dqSectionState === "complete" && "Daily Quest",
+        ffSectionState === "complete" && "Fan Feud",
+        cpSectionState === "complete" && "Career Path",
+        dcSectionState === "complete" && "Draft Class",
+      ].filter(Boolean).join(", ")
+
       setSubmitSuccess(true)
-      setHasExisting({ dq: true, ff: true, cp: true })
-      toast({ title: "Trivia published!", description: `Saved for ${formatDate(selectedDate)}.` })
+      setHasExisting({
+        dq: !!(hasExisting?.dq || dqSectionState === "complete"),
+        ff: !!(hasExisting?.ff || ffSectionState === "complete"),
+        cp: !!(hasExisting?.cp || cpSectionState === "complete"),
+        dc: !!(hasExisting?.dc || dcSectionState === "complete"),
+      })
+      toast({ title: "Published!", description: `${savedGames} saved for ${formatDate(selectedDate)}.` })
       window.scrollTo({ top: 0, behavior: "smooth" })
     } catch (e: unknown) {
       toast({ title: "Failed to save", description: e instanceof Error ? e.message : "Network error", variant: "destructive" })
@@ -273,7 +415,12 @@ function AddTriviaContent() {
   // Dark-themed input class used on every text input/textarea in this page
   const DARK_INPUT = "bg-white/5 border-white/20 text-white placeholder:text-white/30 focus-visible:border-white/50 focus-visible:ring-white/20"
 
-  const anyExisting = hasExisting && (hasExisting.dq || hasExisting.ff || hasExisting.cp)
+  const anyExisting = hasExisting && (hasExisting.dq || hasExisting.ff || hasExisting.cp || hasExisting.dc)
+  const anyBeingReplaced =
+    (dqSectionState === "complete" && !!hasExisting?.dq) ||
+    (ffSectionState === "complete" && !!hasExisting?.ff) ||
+    (cpSectionState === "complete" && !!hasExisting?.cp) ||
+    (dcSectionState === "complete" && !!hasExisting?.dc)
 
   // ─── Render ───────────────────────────────────────────────────────────────────
   return (
@@ -285,7 +432,7 @@ function AddTriviaContent() {
           {/* Header */}
           <div className="text-center mb-8">
             <h1 className="text-4xl font-bold text-white drop-shadow-lg">Add Trivia Content</h1>
-            <p className="text-white/70 mt-2">Pick a date, fill in all three games, then publish.</p>
+            <p className="text-white/70 mt-2">Pick a date, fill in any games you want to publish. Each section submits independently.</p>
           </div>
 
           {/* Success banner */}
@@ -356,6 +503,7 @@ function AddTriviaContent() {
               <div className="flex items-center gap-2">
                 <span className="text-2xl">🏆</span>
                 <h2 className="text-xl font-bold text-white">Daily Quest</h2>
+                <SectionBadge state={dqSectionState} />
                 <span className="ml-auto text-sm text-white/50">
                   {dqQuestions.filter(q => q.text && q.answersDb && q.answer).length}/5 ready
                 </span>
@@ -444,6 +592,7 @@ function AddTriviaContent() {
               <div className="flex items-center gap-2">
                 <span className="text-2xl">🎯</span>
                 <h2 className="text-xl font-bold text-white">Fan Feud</h2>
+                <SectionBadge state={ffSectionState} />
               </div>
               <p className="text-white/50 text-sm mt-1">One question with 1–8 ranked answers. Top answer = rank 1.</p>
             </div>
@@ -511,6 +660,7 @@ function AddTriviaContent() {
               <div className="flex items-center gap-2">
                 <span className="text-2xl">🗺️</span>
                 <h2 className="text-xl font-bold text-white">Career Path</h2>
+                <SectionBadge state={cpSectionState} />
               </div>
               <p className="text-white/50 text-sm mt-1">Pick a player and list teams in chronological order. Years are optional.</p>
             </div>
@@ -601,6 +751,133 @@ function AddTriviaContent() {
           </section>
 
           {/* ══════════════════════════════════════════════════════════════════ */}
+          {/* DRAFT CLASS                                                        */}
+          {/* ══════════════════════════════════════════════════════════════════ */}
+          <section className="rounded-2xl shadow-xl border border-white/10 p-6 mb-6" style={{ backgroundColor: "#082644" }}>
+            <div className="mb-5">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">📋</span>
+                <h2 className="text-xl font-bold text-white">Draft Class</h2>
+                <SectionBadge state={dcSectionState} />
+              </div>
+              <p className="text-white/50 text-sm mt-1">Enter a team, draft year, and their picks. Leave blank to skip.</p>
+            </div>
+
+            <div className="flex flex-col gap-4">
+              {/* Team + Year row */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label className="mb-1.5 block text-sm font-medium text-white/80">NFL Team</Label>
+                  <AutocompleteInput
+                    value={dcTeam}
+                    onChange={setDcTeam}
+                    onSelect={setDcTeam}
+                    suggestions={cache["nfl_teams"] || []}
+                    placeholder="e.g. New Orleans Saints"
+                    exactMatch
+                    className={DARK_INPUT}
+                  />
+                </div>
+                <div>
+                  <Label className="mb-1.5 block text-sm font-medium text-white/80">Draft Year</Label>
+                  <Input
+                    value={dcYear}
+                    onChange={e => setDcYear(e.target.value)}
+                    placeholder="e.g. 2019"
+                    type="number"
+                    min="1936"
+                    max={new Date().getFullYear()}
+                    className={DARK_INPUT}
+                  />
+                </div>
+              </div>
+
+              {/* Picks */}
+              <div>
+                <Label className="mb-2 block text-sm font-medium text-white/80">
+                  Draft Picks
+                  <span className="text-white/40 font-normal ml-1">(round, overall pick, position, player)</span>
+                </Label>
+
+                {/* Header row */}
+                <div className="hidden sm:flex items-center gap-2 mb-1 px-1">
+                  <span className="text-[10px] font-medium text-white/30 uppercase w-6 shrink-0" />
+                  <span className="text-[10px] font-medium text-white/30 uppercase w-14 shrink-0">Rd</span>
+                  <span className="text-[10px] font-medium text-white/30 uppercase w-20 shrink-0">Pick #</span>
+                  <span className="text-[10px] font-medium text-white/30 uppercase w-20 shrink-0">Pos</span>
+                  <span className="text-[10px] font-medium text-white/30 uppercase flex-1">Player Name</span>
+                  <span className="text-[10px] font-medium text-white/30 uppercase w-32 shrink-0">College</span>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  {dcPicks.map((pick, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-white/30 w-6 text-right shrink-0">{i + 1}</span>
+                      <Input
+                        value={pick.round}
+                        onChange={e => updateDcPick(i, { round: e.target.value })}
+                        placeholder="Rd"
+                        type="number"
+                        min="1"
+                        max="7"
+                        className={`w-14 shrink-0 text-sm ${DARK_INPUT}`}
+                      />
+                      <Input
+                        value={pick.pickOverall}
+                        onChange={e => updateDcPick(i, { pickOverall: e.target.value })}
+                        placeholder="Pick"
+                        type="number"
+                        min="1"
+                        max="262"
+                        className={`w-20 shrink-0 text-sm ${DARK_INPUT}`}
+                      />
+                      <Input
+                        value={pick.position}
+                        onChange={e => updateDcPick(i, { position: e.target.value })}
+                        placeholder="QB"
+                        className={`w-20 shrink-0 text-sm ${DARK_INPUT}`}
+                      />
+                      <Input
+                        value={pick.playerName}
+                        onChange={e => updateDcPick(i, { playerName: e.target.value })}
+                        placeholder="Player name…"
+                        className={`flex-1 min-w-0 text-sm ${DARK_INPUT}`}
+                      />
+                      <Input
+                        value={pick.college}
+                        onChange={e => updateDcPick(i, { college: e.target.value })}
+                        placeholder="College"
+                        className={`w-28 shrink-0 text-sm ${DARK_INPUT}`}
+                      />
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="shrink-0 text-white/30 hover:text-red-400 hover:bg-red-500/10"
+                        disabled={dcPicks.length <= 1}
+                        onClick={() => setDcPicks(prev => prev.filter((_, idx) => idx !== i))}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-fit mt-1 bg-white/5 border-white/20 text-white hover:bg-white/10 hover:text-white"
+                    onClick={() => setDcPicks(prev => [...prev, { ...BLANK_PICK }])}
+                  >
+                    <Plus className="h-4 w-4 mr-1.5" />
+                    Add Pick
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* ══════════════════════════════════════════════════════════════════ */}
           {/* SUBMIT                                                             */}
           {/* ══════════════════════════════════════════════════════════════════ */}
           <section className="rounded-2xl shadow-xl border border-white/10 p-6" style={{ backgroundColor: "#082644" }} id="error-summary">
@@ -622,7 +899,7 @@ function AddTriviaContent() {
               <div className="text-sm text-white/50">
                 Saving trivia for{" "}
                 <span className="font-semibold text-white">{formatDate(selectedDate)}</span>
-                {anyExisting && <span className="text-amber-400"> — will replace existing</span>}
+                {anyBeingReplaced && <span className="text-amber-400"> — will replace existing</span>}
               </div>
               <Button
                 onClick={handleSubmit}
@@ -631,10 +908,10 @@ function AddTriviaContent() {
               >
                 {submitting ? (
                   <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving…</>
-                ) : anyExisting ? (
-                  "Replace Trivia"
+                ) : anyBeingReplaced ? (
+                  "Save & Replace"
                 ) : (
-                  "Publish Trivia"
+                  "Publish"
                 )}
               </Button>
             </div>

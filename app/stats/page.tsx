@@ -5,7 +5,7 @@ import { authFetch } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { Trophy, Target, TrendingUp, Loader2, Check, X, ArrowLeft, ShieldOff } from "lucide-react"
+import { Trophy, Target, TrendingUp, ClipboardList, Loader2, Check, X, ArrowLeft, ShieldOff } from "lucide-react"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -23,18 +23,24 @@ type CPEntry = {
   date: string; correct: boolean; completed: boolean
   incorrectGuesses: number; guess: string | null
 }
+type DCEntry = {
+  date: string; year: number; solved: boolean; completed: boolean
+  guessesUsed: number; hintLevel: number
+}
 type DQCareer = { correct: number; possible: number; perfect: number }
 type FFCareer = { correct: number; possible: number; perfect: number }
 type CPCareer = { attempted: number; correct: number }
+type DCCareer = { attempted: number; solved: number; perfect: number }
 
 type GameStats = {
-  dailyQuest: DQEntry[]; fanFeud: FFEntry[]; careerPath: CPEntry[]
-  career: { dailyQuest: DQCareer; fanFeud: FFCareer; careerPath: CPCareer }
+  dailyQuest: DQEntry[]; fanFeud: FFEntry[]; careerPath: CPEntry[]; draftClass: DCEntry[]
+  career: { dailyQuest: DQCareer; fanFeud: FFCareer; careerPath: CPCareer; draftClass: DCCareer }
 }
 
 const EMPTY_DQ_CAREER: DQCareer = { correct: 0, possible: 0, perfect: 0 }
 const EMPTY_FF_CAREER: FFCareer = { correct: 0, possible: 0, perfect: 0 }
 const EMPTY_CP_CAREER: CPCareer = { attempted: 0, correct: 0 }
+const EMPTY_DC_CAREER: DCCareer = { attempted: 0, solved: 0, perfect: 0 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -314,6 +320,76 @@ function CareerPathSection({ entries, career }: { entries: CPEntry[]; career: CP
   )
 }
 
+// ─── Draft Class section ──────────────────────────────────────────────────────
+
+function DraftClassSection({ entries, career }: { entries: DCEntry[]; career: DCCareer }) {
+  const careerCard = (
+    <CareerCard>
+      <StatCell label="Solved" value={`${career.solved} / ${career.attempted}`} />
+      <StatCell label="Solve %" value={pct(career.solved, career.attempted)} />
+      <StatCell label="Perfect" value={career.perfect} />
+    </CareerCard>
+  )
+
+  if (entries.length === 0) return (
+    <GameSection icon={<ClipboardList className="h-5 w-5 text-indigo-400" />} title="Draft Class"
+      borderColor="border-indigo-500" career={careerCard}
+      mostRecent={<p className="text-white/40 text-sm py-3 text-center">No games played yet</p>}
+      history={null} />
+  )
+
+  const [recent, ...prev] = entries
+
+  const mostRecent = (
+    <div className="rounded-xl bg-white/5 border border-white/10 px-5 py-4 mb-3">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-white font-semibold text-base">{fmtDate(recent.date)}</span>
+        <span className={`font-bold text-lg ${recent.solved ? "text-emerald-400" : "text-red-400"}`}>
+          {recent.solved ? "Solved" : "Failed"}
+        </span>
+      </div>
+      <div className="flex items-center gap-3">
+        <div className={`h-9 w-9 rounded-full flex items-center justify-center shrink-0 ${recent.solved ? "bg-emerald-500" : "bg-red-500"}`}>
+          {recent.solved
+            ? <Check className="h-5 w-5 text-white" />
+            : <X className="h-5 w-5 text-white" />}
+        </div>
+        <p className="text-white/50 text-sm">
+          {recent.year} Draft ·{" "}
+          {recent.guessesUsed === 1
+            ? "1 guess"
+            : `${recent.guessesUsed} guesses`}
+          {recent.solved && recent.hintLevel === 0 ? " · Perfect (no hints)" : ""}
+        </p>
+      </div>
+    </div>
+  )
+
+  const history = prev.length > 0 ? (
+    <div className="space-y-2">
+      {prev.map((e, i) => (
+        <div key={i} className="flex items-center justify-between rounded-xl bg-white/5 border border-white/10 px-4 py-2.5">
+          <span className="text-white/50 text-sm">{fmtDate(e.date)}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-white/40 text-xs">{e.year} Draft</span>
+            <div className={`h-6 w-6 rounded-full flex items-center justify-center shrink-0 ${e.solved ? "bg-emerald-500" : "bg-red-500"}`}>
+              {e.solved
+                ? <Check className="h-3.5 w-3.5 text-white" />
+                : <X className="h-3.5 w-3.5 text-white" />}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  ) : null
+
+  return (
+    <GameSection icon={<ClipboardList className="h-5 w-5 text-indigo-400" />} title="Draft Class"
+      borderColor="border-indigo-500" career={careerCard}
+      mostRecent={mostRecent} history={history} />
+  )
+}
+
 // ─── Guest view ───────────────────────────────────────────────────────────────
 
 function GuestView() {
@@ -432,6 +508,7 @@ function StatsPageContent() {
             <DailyQuestSection entries={data?.dailyQuest ?? []} career={data?.career?.dailyQuest ?? EMPTY_DQ_CAREER} />
             <FanFeudSection    entries={data?.fanFeud    ?? []} career={data?.career?.fanFeud    ?? EMPTY_FF_CAREER} />
             <CareerPathSection entries={data?.careerPath ?? []} career={data?.career?.careerPath ?? EMPTY_CP_CAREER} />
+            <DraftClassSection entries={data?.draftClass ?? []} career={data?.career?.draftClass ?? EMPTY_DC_CAREER} />
           </div>
         )}
 

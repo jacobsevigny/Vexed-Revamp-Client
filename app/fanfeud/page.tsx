@@ -7,6 +7,7 @@ import { FanFeudModal } from "@/components/fan-feud/fan-feud-modal"
 import { FanFeudCompleteModal } from "@/components/fan-feud/fan-feud-complete-modal"
 import { getFanFeud, getAllNames, authFetch } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
+import { NoPuzzleToday } from "@/components/no-puzzle-today"
 
 type FanFeudAnswer = { id: number; answer: string; rank: number }
 type Status = "loading" | "empty" | "error" | "ready"
@@ -255,23 +256,7 @@ export default function FanFeud() {
   }
 
   if (status === "empty") {
-    return (
-      <>
-        <Navbar />
-        <div
-          className="min-h-screen w-full flex items-center justify-center px-4 pt-16"
-          style={{ backgroundColor: "#2eaafd" }}
-        >
-          <div className="bg-white rounded-2xl shadow-xl p-8 text-center w-full max-w-md border-4 border-[#152a4d]">
-            <h1 className="text-3xl font-bold mb-4 text-[#152a4d]">No Fan Feud Yet</h1>
-            <p className="text-gray-700">
-              There isn't a Fan Feud published for today (
-              <span className="font-mono font-semibold">{today}</span>) yet. Check back later!
-            </p>
-          </div>
-        </div>
-      </>
-    )
+    return <NoPuzzleToday game="Fan Feud" />
   }
 
   if (status === "error") {

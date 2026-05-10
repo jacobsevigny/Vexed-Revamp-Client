@@ -7,6 +7,7 @@ import QuestionModal from "@/components/daily-quest/question-modal"
 import { ChevronRight } from 'lucide-react'
 import { getDailyQuest, getAllNames, authFetch, type DailyQuestion } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
+import { NoPuzzleToday } from "@/components/no-puzzle-today"
 
 type Question = { text: string; answer: string; answers_db: string }
 type AnswerRecord = { index: number; correct: boolean; guess: string }
@@ -203,16 +204,7 @@ export default function DailyQuestPage() {
   }
 
   if (status === "empty") {
-    return (
-      <div className="min-h-screen w-full flex items-center justify-center px-4 bg-[#2eaafd] pt-16">
-        <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-8 text-center max-w-md">
-          <h1 className="text-3xl font-bold mb-4 text-[#152a4d]">No Daily Quest Yet</h1>
-          <p className="text-gray-600">
-            There aren't any trivia questions published for today yet. Check back later!
-          </p>
-        </div>
-      </div>
-    )
+    return <NoPuzzleToday game="Daily Quest" />
   }
 
   if (status === "error") {
