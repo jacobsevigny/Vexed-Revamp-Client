@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react"
 import { BarChart3, TrendingUp, Target } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
+import { authFetch } from "@/lib/api"
 type StatsShape = {
   totalDaysPlayed?: number
   dailyQuest?: { daysPlayed?: number; totalCorrect?: number; totalQuestions?: number; accuracy?: number | string }
@@ -18,10 +19,7 @@ export function StatsPromoSection() {
     let mounted = true
     ;(async () => {
       try {
-        const accessToken = typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
-        const headers = { "Content-Type": "application/json" };
-        if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
-        const res = await fetch('/api/scores/stats', { credentials: 'same-origin', headers })
+        const res = await authFetch("/api/scores/stats")
         if (!mounted) return
         if (!res.ok) {
           setStats(null)
