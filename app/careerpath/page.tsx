@@ -9,6 +9,7 @@ import { CareerPathModal } from "@/components/career-path/career-path-modal"
 import { CareerPathCompleteModal } from "@/components/career-path/career-path-complete-modal"
 import { getCareerPath, getAllNames, authFetch } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
+import { NoPuzzleToday } from "@/components/no-puzzle-today"
 
 interface Team {
   id: number
@@ -262,21 +263,7 @@ export default function CareerPath() {
   }
 
   if (status === "empty") {
-    return (
-      <>
-        <Navbar />
-        <div className="min-h-screen w-full flex items-center justify-center px-4 bg-[#2eaafd] pt-16">
-          <div className="bg-white/80 rounded-2xl shadow p-6 text-center w-[92vw] max-w-[520px] sm:w-auto">
-            <h1 className="text-2xl font-semibold mb-2">No Career Path Yet</h1>
-            <p className="text-sm text-gray-700">
-              There isn't a Career Path published for today (
-              <span className="font-mono">{today}</span>) yet. Check back later.
-            </p>
-          </div>
-        </div>
-        <Footer />
-      </>
-    )
+    return <NoPuzzleToday game="Career Path" />
   }
 
   if (status === "error") {
