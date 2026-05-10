@@ -14,7 +14,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { useToast } from "@/hooks/use-toast"
 import { CalendarIcon, Plus, Trash2, CheckCircle2, AlertCircle, Loader2, RefreshCw } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
-import { authFetch } from "@/lib/api"
+import { authFetch, getAllNames } from "@/lib/api"
 import { useRouter } from "next/navigation"
 
 const Calendar = dynamic(() => import("@/components/ui/calendar").then(m => m.Calendar), { ssr: false })
@@ -138,11 +138,10 @@ function AddTriviaContent() {
     if (!db || cache[db] || fetchingRef.current.has(db)) return
     fetchingRef.current.add(db)
     try {
-      const res = await fetch(`/api/allnames?db=${encodeURIComponent(db)}`)
-      if (res.ok) {
-        const data: string[] = await res.json()
-        setCache(prev => ({ ...prev, [db]: data }))
-      }
+      const data = await getAllNames(db)
+      setCache(prev => ({ ...prev, [db]: data }))
+    } catch {
+      // silently ignore — autocomplete just won't show suggestions
     } finally {
       fetchingRef.current.delete(db)
     }
