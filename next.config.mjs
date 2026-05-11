@@ -2,8 +2,9 @@
  * Next.js dev proxy: rewrite /api/* to backend server to enable same-origin fetches
  * This keeps frontend code using relative `/api/...` paths and avoids CORS issues in dev.
  *
- * For production static hosting, the frontend should call the backend directly via
- * NEXT_PUBLIC_API_BASE_URL, so these rewrites remain development-only.
+ * For production static hosting, the frontend must call the backend directly via
+ * NEXT_PUBLIC_API_BASE_URL (set this in your Cloudflare Pages environment variables to your Render backend URL).
+ * These rewrites remain development-only and do not affect production.
  */
 const dev = process.env.NODE_ENV !== "production";
 

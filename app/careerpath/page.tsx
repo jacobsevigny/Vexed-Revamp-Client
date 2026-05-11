@@ -1,15 +1,5 @@
 "use client"
-// Utility to check if user is logged in (based on localStorage 'user' or 'accessToken')
-function isUserLoggedIn() {
-  if (typeof window === 'undefined') return false;
-  try {
-    const user = localStorage.getItem('user');
-    const token = localStorage.getItem('accessToken');
-    return !!(user || token);
-  } catch {
-    return false;
-  }
-}
+
 import React, { useEffect, useRef, useState, useCallback } from "react"
 import { motion } from "framer-motion"
 import Image from "next/image"
@@ -18,7 +8,8 @@ import { Footer } from "@/components/footer"
 import { CareerPathModal } from "@/components/career-path/career-path-modal"
 import { CareerPathCompleteModal } from "@/components/career-path/career-path-complete-modal"
 import { getCareerPath, getAllNames, authFetch } from "@/lib/api"
-import { useAuth } from '@/lib/auth-context'
+import { useAuth } from "@/lib/auth-context"
+import { NoPuzzleToday } from "@/components/no-puzzle-today"
 
 interface Team {
   id: number
@@ -38,13 +29,9 @@ type Status = "loading" | "empty" | "error" | "ready"
 
 const today = new Date().toISOString().split("T")[0]
 
-// Career Path quest is loaded from the server at runtime
-
-// CareerPathRow Component
 const CareerPathRow: React.FC<{ teams: Team[]; shake?: boolean; modalOpen?: boolean }> = ({
   teams,
   shake,
-  modalOpen,
 }) => {
   const isMobile = typeof window !== "undefined" && window.innerWidth < 640
 
@@ -56,12 +43,7 @@ const CareerPathRow: React.FC<{ teams: Team[]; shake?: boolean; modalOpen?: bool
             <motion.div
               initial={{ scale: 0, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              transition={{
-                type: "spring",
-                stiffness: 200,
-                damping: 15,
-                delay: idx * 0.15,
-              }}
+              transition={{ type: "spring", stiffness: 200, damping: 15, delay: idx * 0.15 }}
               className="flex flex-col items-center"
             >
               <div className="relative group">
@@ -77,12 +59,9 @@ const CareerPathRow: React.FC<{ teams: Team[]; shake?: boolean; modalOpen?: bool
                   />
                 </div>
               </div>
-
               <div className="mt-4 text-center max-w-[150px]">
                 <p className="text-white font-bold text-sm sm:text-base drop-shadow-lg">{team.name}</p>
-                {team.years && (
-                  <p className="text-xs text-white/70 mt-1">{team.years}</p>
-                )}
+                {team.years && <p className="text-xs text-white/70 mt-1">{team.years}</p>}
               </div>
             </motion.div>
 
@@ -99,9 +78,7 @@ const CareerPathRow: React.FC<{ teams: Team[]; shake?: boolean; modalOpen?: bool
                   width={isMobile ? 30 : 60}
                   height={isMobile ? 60 : 30}
                   className={`drop-shadow-lg ${isMobile ? "rotate-90" : ""}`}
-                  style={{
-                    filter: "drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))",
-                  }}
+                  style={{ filter: "drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))" }}
                   draggable={false}
                 />
               </motion.div>
@@ -114,60 +91,164 @@ const CareerPathRow: React.FC<{ teams: Team[]; shake?: boolean; modalOpen?: bool
 }
 
 export default function CareerPath() {
-
   const [status, setStatus] = useState<Status>("loading")
   const [errorMsg, setErrorMsg] = useState("")
 
   const [quest, setQuest] = useState<QuestData | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [completeModalOpen, setCompleteModalOpen] = useState(false)
-  const [initialized, setInitialized] = useState(false)
 
+  // Start at neutral defaults — load() will populate from the correct storage layer
   const [incorrectGuesses, setIncorrectGuesses] = useState(0)
+  const [readOnly, setReadOnly] = useState(false)
   const [showConfetti, setShowConfetti] = useState(false)
   const [shake, setShake] = useState(false)
-  const [readOnly, setReadOnly] = useState(false)
 
   const containerRef = useRef<HTMLDivElement>(null)
   const [allNames, setAllNames] = useState<string[]>([])
 
-  const getStorageKey = () => `careerpath_progress_guest_${today}`;
+  const { isAuthenticated, isHydrated } = useAuth()
 
-  // Handle answer submission (dummy, must be implemented)
-  const handleSubmit = () => {
-    // TODO: Implement answer submission logic
-  };
+  const guestKey = () => `careerpath_progress_guest_${today}`
+
+  function normalize(str: string) {
+    return str.toLowerCase().replace(/[^a-z0-9]/gi, "")
+  }
+
+  // ── Persist progress to the correct storage layer ──────────────────────────
+  // `guess` is the raw text the user typed — only passed when the game is complete
+  // (correct answer or 3rd wrong guess) so the stats page can show it in tooltips.
+  const saveProgress = async (newIncorrect: number, newReadOnly: boolean, correct: boolean, guess?: string) => {
+    if (isAuthenticated) {
+      try {
+        await authFetch("/api/scores/career-path", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            correct,
+            completed: newReadOnly,
+            incorrectGuesses: newIncorrect,
+            ...(newReadOnly && guess !== undefined ? { guess } : {}),
+          }),
+        })
+      } catch { /* ignore — progress will be saved on next action */ }
+    } else {
+      if (typeof window !== "undefined") {
+        localStorage.setItem(guestKey(), JSON.stringify({ incorrectGuesses: newIncorrect, readOnly: newReadOnly }))
+      }
+    }
+  }
 
   const load = useCallback(async () => {
-    setStatus("loading");
-    setErrorMsg("");
-    try {
-      const data = await getCareerPath();
-      if (!data) {
-        setStatus("empty");
-        setQuest(null);
-        setAllNames([]);
-        setModalOpen(false);
-        return;
-      }
-      setQuest(data);
-      // Fetch all player names for autocomplete
-      const names = await getAllNames(data.answers_table);
-      setAllNames(names);
-      setStatus("ready");
-      setModalOpen(true); // Automatically open the modal when data loads
-    } catch (err: any) {
-      setErrorMsg(err?.message || "Failed to load Career Path.");
-      setStatus("error");
-      setAllNames([]);
-      setModalOpen(false);
-    }
-  }, []);
+    if (!isHydrated) return
 
-  // Call load on mount (must be after load is defined)
+    setStatus("loading")
+    setErrorMsg("")
+    try {
+      const data = await getCareerPath()
+      if (!data) {
+        setStatus("empty")
+        setQuest(null)
+        setAllNames([])
+        setModalOpen(false)
+        return
+      }
+      setQuest(data)
+      const names = await getAllNames(data.answers_table)
+      setAllNames(names)
+
+      if (isAuthenticated) {
+        // ── Logged-in: load progress from the database ──────────────────────
+        try {
+          const res = await authFetch("/api/scores/load", {
+            headers: { "Content-Type": "application/json" },
+          })
+          if (res.ok) {
+            const { data: serverData } = await res.json()
+            const inc = serverData?.careerPathIncorrectGuesses ?? 0
+            const done = serverData?.careerPathCompleted ?? false
+            setIncorrectGuesses(inc)
+            setReadOnly(done)
+            setModalOpen(true)
+            setCompleteModalOpen(false)
+            setStatus("ready")
+            return
+          }
+        } catch {
+          // Server unavailable — fall through to a fresh start
+        }
+        // Logged in but no server record today: start fresh
+        setIncorrectGuesses(0)
+        setReadOnly(false)
+      } else {
+        // ── Guest: load progress from localStorage ───────────────────────────
+        const saved = typeof window !== "undefined" ? localStorage.getItem(guestKey()) : null
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved)
+            setIncorrectGuesses(parsed.incorrectGuesses ?? 0)
+            setReadOnly(parsed.readOnly ?? false)
+          } catch {
+            setIncorrectGuesses(0)
+            setReadOnly(false)
+          }
+        } else {
+          setIncorrectGuesses(0)
+          setReadOnly(false)
+        }
+      }
+
+      setModalOpen(true)
+      setCompleteModalOpen(false)
+      setStatus("ready")
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : "Failed to load Career Path.")
+      setStatus("error")
+      setAllNames([])
+      setModalOpen(false)
+    }
+  }, [isAuthenticated, isHydrated])
+
   useEffect(() => {
-    load();
-  }, [load]);
+    load()
+  }, [load])
+
+  const handleSubmit = (guess: string) => {
+    if (!quest || readOnly) return
+    const correct = normalize(quest.player_name)
+    const userGuess = normalize(guess)
+
+    if (userGuess === correct) {
+      setShowConfetti(true)
+      setReadOnly(true)
+      saveProgress(incorrectGuesses, true, true, guess)
+      setTimeout(() => {
+        setShowConfetti(false)
+        setModalOpen(false)
+        setCompleteModalOpen(true)
+      }, 800)
+    } else {
+      setShake(true)
+      setTimeout(() => setShake(false), 500)
+      const next = incorrectGuesses + 1
+      setIncorrectGuesses(next)
+      if (next >= 3) {
+        setReadOnly(true)
+        saveProgress(next, true, false, guess)
+        setTimeout(() => {
+          setModalOpen(false)
+          setCompleteModalOpen(true)
+        }, 800)
+      } else {
+        saveProgress(next, false, false)
+      }
+    }
+  }
+
+  const handleCompleteModalClose = () => {
+    setCompleteModalOpen(false)
+    setModalOpen(true)
+  }
 
   if (status === "loading") {
     return (
@@ -182,21 +263,7 @@ export default function CareerPath() {
   }
 
   if (status === "empty") {
-    return (
-      <>
-        <Navbar />
-        <div className="min-h-screen w-full flex items-center justify-center px-4 bg-[#2eaafd] pt-16">
-          <div className="bg-white/80 rounded-2xl shadow p-6 text-center w-[92vw] max-w-[520px] sm:w-auto">
-            <h1 className="text-2xl font-semibold mb-2">No Career Path Yet</h1>
-            <p className="text-sm text-gray-700">
-              There isn't a Career Path published for today (<span className="font-mono">{today}</span>) yet. Check back
-              later.
-            </p>
-          </div>
-        </div>
-        <Footer />
-      </>
-    )
+    return <NoPuzzleToday game="Career Path" />
   }
 
   if (status === "error") {
@@ -242,7 +309,7 @@ export default function CareerPath() {
         {completeModalOpen && (
           <div className="w-full flex justify-center mb-[50px] px-4">
             <CareerPathCompleteModal
-              onClose={() => setCompleteModalOpen(false)}
+              onClose={handleCompleteModalClose}
               gameOver={incorrectGuesses >= 3}
               playerName={quest?.player_name}
             />

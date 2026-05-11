@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { ArrowRight } from "lucide-react"
-import Image from "next/image"
+import { HeroBackground } from "@/components/hero-background"
 
 export function HeroSection() {
   const scrollToGames = () => {
@@ -11,37 +11,7 @@ export function HeroSection() {
 
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-gradient-to-br from-secondary via-primary to-secondary pt-16">
-      <div className="absolute inset-0 opacity-10">
-        <div className="absolute inset-0 grid grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-8 p-8 -rotate-12 scale-150">
-          {Array.from({ length: 35 }).map((_, index) => {
-            const row = Math.floor(index / 5)
-            const col = index % 5
-            const isCircle = (row + col) % 2 === 0
-
-            return (
-              <div key={index} className="flex items-center justify-center">
-                {isCircle ? (
-                  <Image
-                    src="/logo-circle.svg"
-                    alt=""
-                    width={120}
-                    height={120}
-                    className="w-20 h-20 md:w-28 md:h-28 opacity-60"
-                  />
-                ) : (
-                  <Image
-                    src="/logo-text.svg"
-                    alt=""
-                    width={180}
-                    height={70}
-                    className="w-28 h-11 md:w-40 md:h-16 opacity-60"
-                  />
-                )}
-              </div>
-            )
-          })}
-        </div>
-      </div>
+      <HeroBackground />
 
       {/* Content */}
       <div className="relative z-10 container mx-auto px-4 text-center">

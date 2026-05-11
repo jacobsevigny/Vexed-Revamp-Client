@@ -7,17 +7,19 @@ import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/hooks/use-toast"
-import { Eye, EyeOff, User, Mail, Calendar, Clock, Upload, Trash2, Shield } from "lucide-react"
-
-// User will be read from localStorage or fetched from the API
+import { Eye, EyeOff, User, Mail, Calendar, Clock, Upload, Trash2, Shield, Loader2 } from "lucide-react"
+import { useAuth } from "@/lib/auth-context"
+import { authFetch } from "@/lib/api"
 
 export default function ProfilePage() {
   const { toast } = useToast()
+  const { user: authUser, isAuthenticated, isHydrated } = useAuth()
+
   const [user, setUser] = useState<{ id?: number; username?: string; email?: string; avatar?: string; createdAt?: string } | null>(null)
-  const [loadingUser, setLoadingUser] = useState(true)
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: "",
@@ -31,19 +33,35 @@ export default function ProfilePage() {
     confirmPassword: "",
   })
 
+  // Seed display state from the auth context immediately, then refresh from server
+  useEffect(() => {
+    if (authUser) setUser(authUser)
+  }, [authUser])
+
+  useEffect(() => {
+    if (!isHydrated || !isAuthenticated) return
+    let mounted = true
+    ;(async () => {
+      try {
+        const res = await authFetch('/auth/me', { method: 'GET' })
+        if (!mounted || !res.ok) return
+        const data = await res.json()
+        if (mounted && data?.user) {
+          setUser(data.user)
+          try { localStorage.setItem('user', JSON.stringify(data.user)) } catch { /* ignore */ }
+        }
+      } catch {
+        // ignore — display info already seeded from context
+      }
+    })()
+    return () => { mounted = false }
+  }, [isHydrated, isAuthenticated])
+
   const validatePassword = (password: string) => {
-    if (password.length < 8) {
-      return "Password must be at least 8 characters"
-    }
-    if (!/[A-Z]/.test(password)) {
-      return "Password must contain at least one uppercase letter"
-    }
-    if (!/[a-z]/.test(password)) {
-      return "Password must contain at least one lowercase letter"
-    }
-    if (!/[0-9]/.test(password)) {
-      return "Password must contain at least one number"
-    }
+    if (password.length < 8)         return "Password must be at least 8 characters"
+    if (!/[A-Z]/.test(password))     return "Password must contain at least one uppercase letter"
+    if (!/[a-z]/.test(password))     return "Password must contain at least one lowercase letter"
+    if (!/[0-9]/.test(password))     return "Password must contain at least one number"
     return ""
   }
 
@@ -52,89 +70,71 @@ export default function ProfilePage() {
     setErrors((prev) => ({ ...prev, [field]: "" }))
 
     if (field === "newPassword") {
-      const error = validatePassword(value)
-      setErrors((prev) => ({ ...prev, newPassword: error }))
+      setErrors((prev) => ({ ...prev, newPassword: validatePassword(value) }))
     }
 
     if (field === "confirmPassword" || (field === "newPassword" && passwordForm.confirmPassword)) {
-      const newPass = field === "newPassword" ? value : passwordForm.newPassword
+      const newPass    = field === "newPassword"     ? value : passwordForm.newPassword
       const confirmPass = field === "confirmPassword" ? value : passwordForm.confirmPassword
-      if (confirmPass && newPass !== confirmPass) {
-        setErrors((prev) => ({ ...prev, confirmPassword: "Passwords do not match" }))
-      } else {
-        setErrors((prev) => ({ ...prev, confirmPassword: "" }))
-      }
+      setErrors((prev) => ({
+        ...prev,
+        confirmPassword: confirmPass && newPass !== confirmPass ? "Passwords do not match" : "",
+      }))
     }
   }
 
-  const handleSubmitPasswordChange = (e: React.FormEvent) => {
+  const handleSubmitPasswordChange = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    // Client-side validation
     const newErrors = {
       currentPassword: passwordForm.currentPassword ? "" : "Current password is required",
-      newPassword: validatePassword(passwordForm.newPassword),
+      newPassword:     validatePassword(passwordForm.newPassword),
       confirmPassword: passwordForm.newPassword !== passwordForm.confirmPassword ? "Passwords do not match" : "",
     }
-
     setErrors(newErrors)
 
-    if (Object.values(newErrors).some((error) => error !== "")) {
-      toast({
-        title: "Validation Error",
-        description: "Please fix the errors before submitting.",
-        variant: "destructive",
-      })
+    if (Object.values(newErrors).some((err) => err !== "")) {
+      toast({ title: "Validation Error", description: "Please fix the errors before submitting.", variant: "destructive" })
       return
     }
 
-    toast({
-      title: "Password Updated!",
-      description: "Your password has been changed successfully.",
-      className: "bg-green-500 text-white border-green-600",
-    })
-
-    setPasswordForm({
-      currentPassword: "",
-      newPassword: "",
-      confirmPassword: "",
-    })
-  }
-
-  // Load user info from localStorage and optionally refresh from the API
-  useEffect(() => {
-    let mounted = true
+    setIsSubmitting(true)
     try {
-      const stored = localStorage.getItem('user')
-      if (stored) {
-        const parsed = JSON.parse(stored)
-        if (mounted) setUser(parsed)
-      }
-    } catch (e) {
-      // ignore
-    }
+      const res = await authFetch('/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentPassword: passwordForm.currentPassword,
+          newPassword:     passwordForm.newPassword,
+        }),
+      })
 
-    // If we have an access token, try to fetch fresh user info from server
-    (async () => {
-      try {
-        const { isAuthenticated } = require('@/lib/auth-context').useAuth();
-        if (!isAuthenticated) return;
-        const { authFetch } = require('@/lib/api');
-        const res = await authFetch('/auth/me', { method: 'GET', headers: { 'Content-Type': 'application/json' } });
-        if (!res.ok) return;
-        const data = await res.json();
-        if (mounted && data?.user) {
-          setUser(data.user)
-          try { localStorage.setItem('user', JSON.stringify(data.user)) } catch (e) {}
+      const data = await res.json().catch(() => ({}))
+
+      if (!res.ok) {
+        const msg: string = (data as { error?: string }).error || 'Failed to change password'
+        // Surface "current password is incorrect" inline on the correct field
+        if (msg.toLowerCase().includes('current password')) {
+          setErrors((prev) => ({ ...prev, currentPassword: msg }))
+        } else {
+          toast({ title: "Error", description: msg, variant: "destructive" })
         }
-      } catch (err) {
-        // ignore fetch errors
-      } finally {
-        if (mounted) setLoadingUser(false)
+        return
       }
-    })()
 
-    return () => { mounted = false }
-  }, [])
+      toast({
+        title: "Password Updated!",
+        description: "Your password has been changed successfully.",
+        className: "bg-green-500 text-white border-green-600",
+      })
+      setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" })
+    } catch {
+      toast({ title: "Error", description: "Network error. Please try again.", variant: "destructive" })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   const initials = user?.username ? user.username.substring(0, 2).toUpperCase() : "?"
   const formattedCreatedAt = user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : ""
@@ -235,7 +235,7 @@ export default function ProfilePage() {
                   </Label>
                   <Input
                     id="lastLogin"
-                    value={""}
+                    value=""
                     disabled
                     className="bg-white/5 border-white/20 text-white disabled:opacity-70 disabled:cursor-not-allowed"
                   />
@@ -278,6 +278,7 @@ export default function ProfilePage() {
                       onChange={(e) => handlePasswordChange("currentPassword", e.target.value)}
                       className="bg-white/5 border-white/20 text-white pr-10 focus:border-primary"
                       placeholder="Enter your current password"
+                      disabled={isSubmitting}
                     />
                     <button
                       type="button"
@@ -305,6 +306,7 @@ export default function ProfilePage() {
                       onChange={(e) => handlePasswordChange("newPassword", e.target.value)}
                       className="bg-white/5 border-white/20 text-white pr-10 focus:border-primary"
                       placeholder="Enter your new password"
+                      disabled={isSubmitting}
                     />
                     <button
                       type="button"
@@ -333,6 +335,7 @@ export default function ProfilePage() {
                       onChange={(e) => handlePasswordChange("confirmPassword", e.target.value)}
                       className="bg-white/5 border-white/20 text-white pr-10 focus:border-primary"
                       placeholder="Confirm your new password"
+                      disabled={isSubmitting}
                     />
                     <button
                       type="button"
@@ -356,26 +359,25 @@ export default function ProfilePage() {
                 <div className="p-4 bg-white/5 border border-white/10 rounded-lg">
                   <p className="text-sm font-medium text-white/80 mb-2">Password Requirements:</p>
                   <ul className="text-sm text-white/60 space-y-1">
-                    <li className="flex items-center gap-2">
-                      <span className="text-xs">•</span>
-                      At least 8 characters long
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <span className="text-xs">•</span>
-                      Contains uppercase and lowercase letters
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <span className="text-xs">•</span>
-                      Contains at least one number
-                    </li>
+                    <li className="flex items-center gap-2"><span className="text-xs">•</span> At least 8 characters long</li>
+                    <li className="flex items-center gap-2"><span className="text-xs">•</span> Contains uppercase and lowercase letters</li>
+                    <li className="flex items-center gap-2"><span className="text-xs">•</span> Contains at least one number</li>
                   </ul>
                 </div>
 
                 <Button
                   type="submit"
-                  className="w-full bg-primary hover:bg-primary/90 text-white font-semibold py-6 text-lg transition-all hover:scale-[1.02]"
+                  disabled={isSubmitting}
+                  className="w-full bg-primary hover:bg-primary/90 text-white font-semibold py-6 text-lg transition-all hover:scale-[1.02] disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:scale-100"
                 >
-                  Change Password
+                  {isSubmitting ? (
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      Changing Password…
+                    </div>
+                  ) : (
+                    "Change Password"
+                  )}
                 </Button>
               </form>
             </CardContent>
