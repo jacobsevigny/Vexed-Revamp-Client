@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
+import { rankSuggestions } from '@/lib/search-utils'
 
 export function AutocompleteInput({
   value,
@@ -36,10 +37,7 @@ export function AutocompleteInput({
 
   useEffect(() => { setMounted(true) }, [])
 
-  const normalized = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/gi, '')
-  const filtered = value
-    ? suggestions.filter(s => normalized(s).includes(normalized(value))).slice(0, 50)
-    : suggestions.slice(0, 50)
+  const filtered = value ? rankSuggestions(suggestions, value, 50) : suggestions.slice(0, 50)
   const isExact = !!value && suggestions.includes(value)
 
   // Measure and track the wrapper's position for the portal dropdown.
@@ -69,7 +67,7 @@ export function AutocompleteInput({
   const dropdown = showDropdown ? (
     <div
       style={dropdownStyle}
-      className="bg-white border border-blue-100 rounded-md shadow-xl max-h-56 overflow-auto"
+      className="bg-white border border-blue-100 rounded-md shadow-xl max-h-56 overflow-y-auto overflow-x-hidden"
     >
       {filtered.length > 0 ? (
         filtered.map(s => (
