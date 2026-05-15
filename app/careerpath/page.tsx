@@ -10,6 +10,31 @@ import { CareerPathCompleteModal } from "@/components/career-path/career-path-co
 import { getCareerPath, getAllNames, authFetch } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 import { NoPuzzleToday } from "@/components/no-puzzle-today"
+import { HowToPlayModal } from "@/components/how-to-play-modal"
+import { GameNavHub } from "@/components/game-nav-hub"
+
+const CAREER_PATH_STEPS = [
+  {
+    step: "1",
+    title: "Study the Career Path",
+    desc: "A sequence of team logos is shown, representing every team a mystery player has played for in order.",
+  },
+  {
+    step: "2",
+    title: "Type Your Guess",
+    desc: "Type the player's name and select from the autocomplete dropdown.",
+  },
+  {
+    step: "3",
+    title: "Three Chances",
+    desc: "You get 3 guesses to identify the player. Your lives are represented underneath the question.",
+  },
+  {
+    step: "4",
+    title: "New Player Daily",
+    desc: "A brand new mystery player is revealed every day. Log in to track your Career Path accuracy over time.",
+  },
+]
 
 interface Team {
   id: number
@@ -157,6 +182,8 @@ export default function CareerPath() {
       const names = await getAllNames(data.answers_table)
       setAllNames(names)
 
+      let done = false
+
       if (isAuthenticated) {
         // ── Logged-in: load progress from the database ──────────────────────
         try {
@@ -166,11 +193,11 @@ export default function CareerPath() {
           if (res.ok) {
             const { data: serverData } = await res.json()
             const inc = serverData?.careerPathIncorrectGuesses ?? 0
-            const done = serverData?.careerPathCompleted ?? false
+            done = serverData?.careerPathCompleted ?? false
             setIncorrectGuesses(inc)
             setReadOnly(done)
-            setModalOpen(true)
-            setCompleteModalOpen(false)
+            setModalOpen(!done)
+            setCompleteModalOpen(done)
             setStatus("ready")
             return
           }
@@ -187,7 +214,8 @@ export default function CareerPath() {
           try {
             const parsed = JSON.parse(saved)
             setIncorrectGuesses(parsed.incorrectGuesses ?? 0)
-            setReadOnly(parsed.readOnly ?? false)
+            done = parsed.readOnly ?? false
+            setReadOnly(done)
           } catch {
             setIncorrectGuesses(0)
             setReadOnly(false)
@@ -198,8 +226,8 @@ export default function CareerPath() {
         }
       }
 
-      setModalOpen(true)
-      setCompleteModalOpen(false)
+      setModalOpen(!done)
+      setCompleteModalOpen(done)
       setStatus("ready")
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : "Failed to load Career Path.")
@@ -326,9 +354,16 @@ export default function CareerPath() {
             className="text-center mt-[50px]"
           >
             <h2 className="text-lg sm:text-xl font-bold text-white mb-1 drop-shadow-lg">Career Path</h2>
-            <p className="text-sm sm:text-base text-white/80">Guess the player from their career journey</p>
+            <p className="text-sm sm:text-base text-white/80 mb-3">Guess the player from their career journey</p>
+            <HowToPlayModal
+              gameName="Career Path"
+              subtitle="Follow the career journey — then guess the player."
+              steps={CAREER_PATH_STEPS}
+            />
           </motion.div>
         )}
+
+        <GameNavHub currentGame="careerpath" />
       </div>
     </>
   )

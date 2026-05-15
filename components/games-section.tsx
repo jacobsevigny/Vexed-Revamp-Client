@@ -6,25 +6,25 @@ import Image from "next/image"
 const games = [
   {
     title: "Daily Quest",
-    description: "Five questions. One path. Can you make it to the end?",
+    description: "Answer 5 trivia NFL questions across various categories. Answer a question to unlock the next. New questions every day.",
     iconUrl: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/daily-quest-xEdLnWtWdxs0s2Boj9SnRpQMx0dQZZ.png",
     href: "/dailyquest",
   },
   {
     title: "Fan Feud",
-    description: "Top 8 answers on the board. Can you name them all?",
+    description: "Name all top answers on the board. You have 3 wrong guesses, so make them count. Updated daily.",
     iconUrl: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/fan-feud-sGYenYe9XUg6x6ksnhQmrYMOnWnOOo.png",
     href: "/fanfeud",
   },
   {
     title: "Career Path",
-    description: "Guess the player from their career journey.",
+    description: "Study a player's career team history and guess who they are. New mystery player every day.",
     iconUrl: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/career-path-5XXDodosQ38jzCXi9nvjrcEMrJ8OAs.png",
     href: "/careerpath",
   },
   {
     title: "Draft Class",
-    description: "Guess the NFL team from their draft picks.",
+    description: "Identify an NFL team from their draft class picks. Clues unlock with each wrong guess. New class every day.",
     iconUrl: "https://mxful4sao5eyuuei.public.blob.vercel-storage.com/draft-class.png",
     href: "/draftclass",
   },
@@ -52,7 +52,7 @@ export function GamesSection() {
                 <div className="mx-auto mb-4 w-20 h-20 flex items-center justify-center group-hover:scale-110 transition-transform">
                   <Image
                     src={game.iconUrl}
-                    alt={game.title}
+                    alt={`${game.title} game icon`}
                     width={80}
                     height={80}
                     className="object-contain"
@@ -76,6 +76,10 @@ export function GamesSection() {
             </Card>
           ))}
         </div>
+
+        <p className="text-center text-white/60 text-sm mt-10">
+          All games are free to play. No subscription required. New challenges drop every day.
+        </p>
       </div>
     </section>
   )

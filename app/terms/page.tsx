@@ -1,3 +1,12 @@
+import type { Metadata } from "next"
+
+export const metadata: Metadata = {
+  title: "Terms of Service",
+  description:
+    "Read the Vexed Sports Terms of Service. Understand the rules and guidelines for using our free daily sports trivia platform.",
+  openGraph: { url: "https://vexedsports.com/terms" },
+}
+
 export default function TermsPage() {
   return (
     <div className="min-h-screen pt-24 pb-12 px-4" style={{ backgroundColor: "#2eaafd" }}>

@@ -15,9 +15,30 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: "Vexed Sports - Daily Sports Trivia",
-  description: "Test your sports knowledge every day with daily trivia challenges, leaderboards, and more.",
-  generator: "v0.app",
+  title: {
+    default: "Vexed Sports – Free Daily Sports Trivia",
+    template: "%s | Vexed Sports",
+  },
+  description:
+    "Play free daily sports trivia games — Daily Quest, Fan Feud, Career Path, and Draft Class. New challenges every day for NFL, NBA, and NHL fans.",
+  metadataBase: new URL("https://vexedsports.com"),
+  openGraph: {
+    siteName: "Vexed Sports",
+    type: "website",
+    locale: "en_US",
+    url: "https://vexedsports.com",
+    title: "Vexed Sports – Free Daily Sports Trivia",
+    description:
+      "Play four free daily sports trivia games. Test your NFL, NBA, and NHL knowledge with new challenges every day.",
+    images: [{ url: "/logo-full-transparent.svg", alt: "Vexed Sports" }],
+  },
+  twitter: {
+    card: "summary",
+    title: "Vexed Sports – Free Daily Sports Trivia",
+    description:
+      "Play four free daily sports trivia games. Test your NFL, NBA, and NHL knowledge with new challenges every day.",
+  },
+  robots: { index: true, follow: true },
 }
 
 export default function RootLayout({

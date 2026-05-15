@@ -1,4 +1,12 @@
+import type { Metadata } from "next"
 import { Mail, Globe } from "lucide-react"
+
+export const metadata: Metadata = {
+  title: "Contact Us",
+  description:
+    "Get in touch with the Vexed Sports team. We're happy to answer questions, hear feedback, or discuss business inquiries.",
+  openGraph: { url: "https://vexedsports.com/contact" },
+}
 
 export default function ContactPage() {
   return (
