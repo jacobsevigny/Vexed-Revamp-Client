@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /profile
+Disallow: /friends
+Disallow: /unauthorized
+
+Sitemap: https://vexedsports.com/sitemap.xml

@@ -7,6 +7,32 @@ import { authFetch, getAllNames } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 import { Check, X, Loader2, AlertCircle } from "lucide-react"
 import { NoPuzzleToday } from "@/components/no-puzzle-today"
+import { HowToPlayModal } from "@/components/how-to-play-modal"
+import { DraftClassCompleteModal } from "@/components/draft-class/draft-class-complete-modal"
+import { GameNavHub } from "@/components/game-nav-hub"
+
+const DRAFT_CLASS_STEPS = [
+  {
+    step: "1",
+    title: "Study the Draft Picks",
+    desc: "The board shows each pick's round and overall number. Player names and positions are hidden at the start.",
+  },
+  {
+    step: "2",
+    title: "Guess the NFL Team",
+    desc: "Type an NFL team name and select it from the dropdown to submit your guess.",
+  },
+  {
+    step: "3",
+    title: "Unlock Hints",
+    desc: "Each wrong guess unlocks more information such as draft year, positions, then player names to help you narrow it down.",
+  },
+  {
+    step: "4",
+    title: "Fewer Guesses = Better Score",
+    desc: "You have 5 guesses before the game ends. Identify the team as early as possible for the best score.",
+  },
+]
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -143,6 +169,7 @@ export default function DraftClass() {
   const [submitting,      setSubmitting]      = useState(false)
   const [shake,           setShake]           = useState(false)
   const [dropdown,        setDropdown]        = useState(false)
+  const [showCompleteModal, setShowCompleteModal] = useState(false)
 
   const wrapperRef = useRef<HTMLDivElement>(null)
   const guestKey   = `draftclass_progress_guest_${today}`
@@ -182,6 +209,7 @@ export default function DraftClass() {
         setHintLevel(p.hintLevel || 0)
         setSolved(p.solved    || false)
         setCompleted(p.completed || false)
+        if (p.completed) setShowCompleteModal(true)
       }
       if (data.correctTeam)     setCorrectTeam(data.correctTeam)
       if (data.correctTeamLogo) setCorrectTeamLogo(data.correctTeamLogo)
@@ -195,6 +223,7 @@ export default function DraftClass() {
           setCompleted(gp.completed || false)
           if (gp.correctTeam)     setCorrectTeam(gp.correctTeam)
           if (gp.correctTeamLogo) setCorrectTeamLogo(gp.correctTeamLogo)
+          if (gp.completed) setShowCompleteModal(true)
         }
       }
 
@@ -251,6 +280,8 @@ export default function DraftClass() {
         setShake(true)
         setTimeout(() => setShake(false), 600)
       }
+
+      if (data.completed) setShowCompleteModal(true)
 
       if (!isAuthenticated) {
         saveGuest({
@@ -325,9 +356,14 @@ export default function DraftClass() {
             <h1 className="text-4xl md:text-5xl font-black text-white drop-shadow-lg mb-1">
               Draft Class
             </h1>
-            <p className="text-white/80 text-base">
+            <p className="text-white/80 text-base mb-3">
               Guess the NFL team from their draft picks.
             </p>
+            <HowToPlayModal
+              gameName="Draft Class"
+              subtitle="Identify an NFL team from their draft picks. Fewer guesses = better score."
+              steps={DRAFT_CLASS_STEPS}
+            />
           </div>
 
           {/* ── Main card ─────────────────────────────────────────────────── */}
@@ -505,7 +541,20 @@ export default function DraftClass() {
           </div>
 
         </div>
+
+        <GameNavHub currentGame="draftclass" />
       </div>
+
+      {showCompleteModal && (
+        <DraftClassCompleteModal
+          onClose={() => setShowCompleteModal(false)}
+          solved={solved}
+          year={game?.year ?? null}
+          correctTeam={correctTeam}
+          correctTeamLogo={correctTeamLogo}
+          guessCount={guesses.length}
+        />
+      )}
     </>
   )
 }

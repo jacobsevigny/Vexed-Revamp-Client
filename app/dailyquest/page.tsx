@@ -4,10 +4,36 @@ import React, { useState, useEffect, useCallback } from "react"
 import { motion } from "framer-motion"
 import QuestionBox from "@/components/daily-quest/question-box"
 import QuestionModal from "@/components/daily-quest/question-modal"
+import CompleteModal from "@/components/daily-quest/complete-modal"
 import { ChevronRight } from 'lucide-react'
 import { getDailyQuest, getAllNames, authFetch, type DailyQuestion } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 import { NoPuzzleToday } from "@/components/no-puzzle-today"
+import { HowToPlayModal } from "@/components/how-to-play-modal"
+import { GameNavHub } from "@/components/game-nav-hub"
+
+const DAILY_QUEST_STEPS = [
+  {
+    step: "1",
+    title: "Read the Question",
+    desc: "Each day brings 5 new sports trivia questions covering the NFL. Click on the first box to read the question and start your quest.",
+  },
+  {
+    step: "2",
+    title: "Type Your Answer",
+    desc: "Start typing and select from the autocomplete dropdown.",
+  },
+  {
+    step: "3",
+    title: "Progress Through All 5",
+    desc: "Whether your answer is right or wrong, you advance to the next question. All 5 must be answered to complete the quest.",
+  },
+  {
+    step: "4",
+    title: "Score",
+    desc: "Earn a point for each correct answer. Log in to save your scores.",
+  },
+]
 
 type Question = { text: string; answer: string; answers_db: string }
 type AnswerRecord = { index: number; correct: boolean; guess: string }
@@ -225,14 +251,21 @@ export default function DailyQuestPage() {
   }
 
   return (
-    <div className="min-h-screen w-full bg-[#2eaafd] flex items-center justify-center px-4 py-12 pt-24">
-      <div className="w-full max-w-6xl">
+    <div className="min-h-screen w-full bg-[#2eaafd] flex flex-col items-center px-4 pt-24 pb-12">
+      <div className="w-full max-w-6xl flex-1 flex flex-col justify-center py-8">
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-12">
           <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">Daily Quest</h1>
           <p className="text-white/80 text-lg">Answer 5 sports trivia questions to complete today's quest</p>
-          <div className="mt-4 inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full">
-            <span className="text-white/60 text-sm">Progress:</span>
-            <span className="text-white font-bold">{answered.length}/5</span>
+          <div className="mt-4 flex items-center justify-center gap-3 flex-wrap">
+            <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full">
+              <span className="text-white/60 text-sm">Progress:</span>
+              <span className="text-white font-bold">{answered.length}/5</span>
+            </div>
+            <HowToPlayModal
+              gameName="Daily Quest"
+              subtitle="Five sports trivia questions. One new set every day."
+              steps={DAILY_QUEST_STEPS}
+            />
           </div>
         </motion.div>
 
@@ -294,6 +327,12 @@ export default function DailyQuestPage() {
           />
         )}
       </div>
+
+      <GameNavHub currentGame="dailyquest" />
+
+      {showCongrats && (
+        <CompleteModal score={score} onClose={() => setShowCongrats(false)} />
+      )}
     </div>
   )
 }

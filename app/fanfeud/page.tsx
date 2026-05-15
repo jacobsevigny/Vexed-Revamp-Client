@@ -8,6 +8,31 @@ import { FanFeudCompleteModal } from "@/components/fan-feud/fan-feud-complete-mo
 import { getFanFeud, getAllNames, authFetch } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 import { NoPuzzleToday } from "@/components/no-puzzle-today"
+import { HowToPlayModal } from "@/components/how-to-play-modal"
+import { GameNavHub } from "@/components/game-nav-hub"
+
+const FAN_FEUD_STEPS = [
+  {
+    step: "1",
+    title: "Read the Question",
+    desc: "A daily sports survey question is shown. The top answers are hidden on the board.",
+  },
+  {
+    step: "2",
+    title: "Type Your Guess",
+    desc: "Type an answer and select from the autocomplete suggestions.",
+  },
+  {
+    step: "3",
+    title: "Flip the Board",
+    desc: "Correct guesses flip the matching card on the board. Reveal all answers to win.",
+  },
+  {
+    step: "4",
+    title: "Watch Your Lives",
+    desc: "You have 3 wrong guesses before the game ends. Reveal all answers before you run out of lives.",
+  },
+]
 
 type FanFeudAnswer = { id: number; answer: string; rank: number }
 type Status = "loading" | "empty" | "error" | "ready"
@@ -292,7 +317,12 @@ export default function FanFeud() {
             className="text-center mb-8"
           >
             <h1 className="text-4xl sm:text-5xl font-black text-white mb-2 drop-shadow-lg">Fan Feud</h1>
-            <p className="text-xl sm:text-2xl text-white/90 font-semibold">Guess all answers on the board to win!</p>
+            <p className="text-xl sm:text-2xl text-white/90 font-semibold mb-3">Guess all answers on the board to win!</p>
+            <HowToPlayModal
+              gameName="Fan Feud"
+              subtitle="Eight answers are on the board. Can you name them all?"
+              steps={FAN_FEUD_STEPS}
+            />
           </motion.div>
 
           {showModal && (
@@ -304,7 +334,7 @@ export default function FanFeud() {
                 shake={shake}
                 allAnswers={allAnswers}
                 incorrectGuesses={incorrectGuesses}
-                readOnly={gameComplete && !didWin}
+                readOnly={gameComplete}
               />
             </div>
           )}
@@ -316,7 +346,7 @@ export default function FanFeud() {
                 totalCount={answers.length}
                 onClose={() => {
                   setShowCompleteModal(false)
-                  if (!didWin) setShowModal(true)
+                  setShowModal(true)
                 }}
               />
             </div>
@@ -433,6 +463,8 @@ export default function FanFeud() {
               })}
             </div>
           </div>
+
+          <GameNavHub currentGame="fanfeud" />
         </div>
       </div>
     </>

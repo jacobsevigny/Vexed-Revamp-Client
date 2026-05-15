@@ -1,5 +1,12 @@
+import type { Metadata } from "next"
 import Link from "next/link"
 import { HeroBackground } from "@/components/hero-background"
+
+export const metadata: Metadata = {
+  title: "Page Not Found",
+  description: "The page you're looking for could not be found. Head back to Vexed Sports to play today's free daily sports trivia games.",
+  robots: { index: false, follow: true },
+}
 
 export default function NotFound() {
   return (

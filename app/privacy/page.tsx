@@ -1,3 +1,12 @@
+import type { Metadata } from "next"
+
+export const metadata: Metadata = {
+  title: "Privacy Policy",
+  description:
+    "Read the Vexed Sports Privacy Policy. Learn how we collect, use, and protect your data when you play our free daily sports trivia games.",
+  openGraph: { url: "https://vexedsports.com/privacy" },
+}
+
 export default function PrivacyPage() {
   return (
     <div className="min-h-screen pt-24 pb-12 px-4" style={{ backgroundColor: "#2eaafd" }}>
