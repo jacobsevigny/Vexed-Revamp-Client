@@ -385,7 +385,7 @@ export default function DraftClass() {
                     placeholder={submitting ? "Submitting…" : "Search NFL teams…"}
                     disabled={submitting}
                     autoComplete="off"
-                    className="w-full rounded-xl border border-white/20 bg-white/5 px-4 py-2.5 text-white placeholder:text-white/30 text-sm focus:outline-none focus:border-[#2eaafd]/60 focus:ring-1 focus:ring-[#2eaafd]/40 disabled:opacity-50 transition"
+                    className="w-full rounded-xl border border-white/20 bg-white/5 px-4 py-2.5 text-white placeholder:text-white/30 text-base sm:text-sm focus:outline-none focus:border-[#2eaafd]/60 focus:ring-1 focus:ring-[#2eaafd]/40 disabled:opacity-50 transition"
                   />
                   {submitting && (
                     <div className="absolute right-3 top-1/2 -translate-y-1/2">
