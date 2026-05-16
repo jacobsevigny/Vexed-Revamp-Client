@@ -6,11 +6,10 @@ import { motion, AnimatePresence } from "framer-motion"
 import { useEffect, useRef, useId } from "react"
 import { GAMES, type GameId } from "@/lib/games-config"
 
-export function TrophySVG() {
+export function TrophySVG({ className = "w-14 h-14 sm:w-20 sm:h-20" }: { className?: string }) {
   return (
     <svg
-      width="80"
-      height="80"
+      className={className}
       viewBox="0 0 1639.16 1372.8"
       xmlns="http://www.w3.org/2000/svg"
       role="img"
@@ -103,7 +102,7 @@ export function GameCompleteModal({
           role="dialog"
           aria-modal="true"
           aria-labelledby={titleId}
-          className="relative rounded-3xl shadow-2xl w-full max-w-lg overflow-y-auto max-h-[90vh] focus:outline-none"
+          className="relative rounded-3xl shadow-2xl w-full max-w-lg overflow-y-auto max-h-[85vh] focus:outline-none"
           style={{ backgroundColor: "#082644" }}
           initial={{ scale: 0.8, opacity: 0, y: 50 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
@@ -115,12 +114,12 @@ export function GameCompleteModal({
           <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-[#2eaafd]/20 to-transparent rounded-full blur-3xl pointer-events-none" />
           <div className="absolute bottom-0 left-0 w-40 h-40 bg-gradient-to-tr from-[#2a569c]/20 to-transparent rounded-full blur-3xl pointer-events-none" />
 
-          <div className="relative p-8 md:p-10 text-center">
+          <div className="relative p-5 sm:p-7 md:p-9 text-center">
             <motion.div
               initial={{ scale: 0, rotate: -180 }}
               animate={{ scale: 1, rotate: 0 }}
               transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-              className="flex justify-center mb-6"
+              className="flex justify-center mb-2.5 sm:mb-4"
             >
               {icon ?? <TrophySVG />}
             </motion.div>
@@ -130,7 +129,7 @@ export function GameCompleteModal({
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
-              className="text-3xl md:text-4xl font-bold text-white mb-4"
+              className="text-xl sm:text-2xl md:text-3xl font-bold text-white mb-2 sm:mb-3"
             >
               {title}
             </motion.h2>
@@ -139,7 +138,7 @@ export function GameCompleteModal({
               initial={{ opacity: 0, scale: 0.5 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.4, type: "spring" }}
-              className="mb-6"
+              className="mb-2.5 sm:mb-4"
             >
               {badge}
             </motion.div>
@@ -148,7 +147,7 @@ export function GameCompleteModal({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.5 }}
-              className="text-xl font-semibold text-white mb-2"
+              className="text-sm sm:text-base font-semibold text-white mb-1"
             >
               {message}
             </motion.p>
@@ -157,7 +156,7 @@ export function GameCompleteModal({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.6 }}
-              className="text-white/70 mb-8"
+              className="text-white/70 text-xs sm:text-sm mb-3 sm:mb-5"
             >
               {subMessage}
             </motion.p>
@@ -167,7 +166,7 @@ export function GameCompleteModal({
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.7 }}
               onClick={onClose}
-              className="px-8 py-3 bg-gradient-to-r from-[#2a569c] to-[#2eaafd] text-white font-bold rounded-xl hover:shadow-lg hover:scale-105 transition-all"
+              className="px-6 py-2.5 sm:px-8 sm:py-3 bg-gradient-to-r from-[#2a569c] to-[#2eaafd] text-white text-sm sm:text-base font-bold rounded-xl hover:shadow-lg hover:scale-105 transition-all"
             >
               Close
             </motion.button>
@@ -177,29 +176,25 @@ export function GameCompleteModal({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.85 }}
-                className="mt-7 pt-6 border-t border-white/10"
+                className="mt-4 sm:mt-6 pt-4 sm:pt-5 border-t border-white/10"
               >
-                <p className="text-white/40 text-[10px] font-semibold uppercase tracking-widest mb-4">
+                <p className="text-white/40 text-[10px] font-semibold uppercase tracking-widest mb-2 sm:mb-3">
                   Play Another Game
                 </p>
-                <div className="flex gap-2.5 justify-center">
+                <div className="flex gap-2 sm:gap-2.5 justify-center">
                   {otherGames.map((game) => (
                     <Link
                       key={game.id}
                       href={game.href}
                       aria-label={`Play ${game.title}`}
-                      className="flex flex-col items-center gap-1.5 p-3 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/12 hover:border-white/25 hover:-translate-y-0.5 transition-all duration-200 group"
-                      style={{ width: 92 }}
+                      className="flex flex-col items-center gap-1 sm:gap-1.5 p-1.5 sm:p-2.5 rounded-xl sm:rounded-2xl bg-white/5 border border-white/10 hover:bg-white/12 hover:border-white/25 hover:-translate-y-0.5 transition-all duration-200 group w-[70px] sm:w-[86px]"
                     >
                       <img
                         src={game.iconUrl}
                         alt={`${game.title} icon`}
-                        width={38}
-                        height={38}
-                        style={{ width: 38, height: 38 }}
-                        className="object-contain group-hover:scale-110 transition-transform duration-200"
+                        className="w-7 h-7 sm:w-9 sm:h-9 object-contain group-hover:scale-110 transition-transform duration-200"
                       />
-                      <span className="text-white/60 text-[10px] font-semibold text-center leading-tight group-hover:text-white/90 transition-colors duration-200">
+                      <span className="text-white/60 text-[9px] sm:text-[10px] font-semibold text-center leading-tight group-hover:text-white/90 transition-colors duration-200">
                         {game.title}
                       </span>
                     </Link>

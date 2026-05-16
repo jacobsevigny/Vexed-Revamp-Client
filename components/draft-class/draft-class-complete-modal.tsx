@@ -38,22 +38,22 @@ export function DraftClassCompleteModal({
   }
 
   const badge = (
-    <div className="flex flex-col items-center gap-3">
+    <div className="flex flex-col items-center gap-2 sm:gap-3">
       {correctTeamLogo && (
         <img
           src={correctTeamLogo}
           alt={`${correctTeam ?? "team"} logo`}
-          className="h-16 w-16 object-contain"
+          className="h-10 w-10 sm:h-14 sm:w-14 object-contain"
         />
       )}
       <div
-        className={`inline-flex items-center gap-3 px-8 py-4 rounded-2xl shadow-lg text-white ${
+        className={`inline-flex items-center gap-2 sm:gap-3 px-5 py-2.5 sm:px-8 sm:py-4 rounded-2xl shadow-lg text-white ${
           solved
             ? "bg-gradient-to-r from-[#2a569c] to-[#2eaafd]"
             : "bg-white/10 border border-white/20"
         }`}
       >
-        <span className="text-2xl font-bold">{correctTeam ?? "Unknown Team"}</span>
+        <span className="text-lg sm:text-2xl font-bold">{correctTeam ?? "Unknown Team"}</span>
       </div>
     </div>
   )

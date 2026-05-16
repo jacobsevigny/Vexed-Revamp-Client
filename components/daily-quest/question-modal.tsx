@@ -80,7 +80,7 @@ export default function QuestionModal({
     <AnimatePresence>
       <motion.div
         ref={overlayRef}
-        className="fixed inset-0 z-[10000] bg-black/60 backdrop-blur-md flex items-start justify-center p-4 pt-20"
+        className="fixed inset-0 z-[10000] bg-black/60 backdrop-blur-md flex items-start justify-center p-4 pt-4 sm:pt-20"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
@@ -93,18 +93,18 @@ export default function QuestionModal({
           transition={{ type: "spring", stiffness: 300, damping: 25 }}
         >
           {/* Header with gradient */}
-          <div className="bg-gradient-to-r from-[#152a4d] to-[#2a569c] p-6 md:p-8 rounded-t-3xl">
+          <div className="bg-gradient-to-r from-[#152a4d] to-[#2a569c] p-4 sm:p-6 md:p-8 rounded-t-3xl">
             <button
               onClick={onClose}
               className="absolute top-4 right-4 text-white/80 hover:text-white transition-colors"
             >
               <X size={24} />
             </button>
-            <h2 className="text-xl md:text-2xl font-bold text-white text-center pr-8">{question}</h2>
+            <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-white text-center pr-8">{question}</h2>
           </div>
 
           {/* Content */}
-          <div className="p-6 md:p-8">
+          <div className="p-4 sm:p-6 md:p-8">
             {review ? (
               <div className="flex flex-col gap-4">
                 <div
@@ -136,7 +136,7 @@ export default function QuestionModal({
                     autoComplete="off"
                   />
                   {suggestions.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 mt-2 bg-[#152a4d] border-2 border-[#2eaafd] rounded-xl shadow-xl max-h-60 overflow-y-auto z-[10001]">
+                    <div className="absolute top-full left-0 right-0 mt-2 bg-[#152a4d] border-2 border-[#2eaafd] rounded-xl shadow-xl max-h-44 sm:max-h-60 overflow-y-auto z-[10001]">
                       {suggestions.map((name, idx) => (
                         <div
                           key={idx}

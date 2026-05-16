@@ -384,6 +384,7 @@ export default function FanFeud() {
                         // and backface-visibility stops working.
                         transformStyle: "preserve-3d",
                         WebkitTransformStyle: "preserve-3d",
+                        willChange: "transform",
                       }}
                       onAnimationComplete={() => {
                         if (shouldReveal) {
@@ -414,6 +415,11 @@ export default function FanFeud() {
                             backgroundColor: "#082644",
                             backfaceVisibility: "hidden",
                             WebkitBackfaceVisibility: "hidden",
+                            // Immediately hide the front face when a flip is triggered.
+                            // On some mobile browsers backface-visibility alone fails,
+                            // leaving the mirrored number visible during the animation.
+                            visibility: shouldReveal ? "hidden" : "visible",
+                            willChange: "transform",
                           }}
                         >
                           {answer && (
@@ -434,6 +440,7 @@ export default function FanFeud() {
                           WebkitBackfaceVisibility: "hidden",
                           transform: "rotateY(180deg)",
                           WebkitTransform: "rotateY(180deg)",
+                          willChange: "transform",
                         }}
                       >
                         <div className="relative z-10">
