@@ -1,7 +1,6 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { ArrowRight } from "lucide-react"
 import { HeroBackground } from "@/components/hero-background"
 
 export function HeroSection() {
@@ -31,7 +30,7 @@ export function HeroSection() {
             className="bg-white text-secondary hover:bg-white/90 font-bold text-lg px-8 py-6 rounded-xl shadow-2xl hover:scale-105 transition-transform"
           >
             Play Now
-            <ArrowRight className="ml-2 h-5 w-5" />
+            <img src="/logo-circle.svg" alt="" aria-hidden="true" className="ml-2 h-6 w-6" />
           </Button>
         </div>
       </div>
