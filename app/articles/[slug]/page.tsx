@@ -1,7 +1,5 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Navbar } from "@/components/navbar";
-import { Footer } from "@/components/footer";
 import { ArticleBlockRenderer } from "@/components/articles/article-block-renderer";
 import type { Article, ImageBlock } from "@/components/articles/types";
 
@@ -79,8 +77,7 @@ export default async function ArticlePage({
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#051a2e] to-[#0a2d52]">
-      <Navbar />
-      <main className="mx-auto max-w-3xl px-4 py-14">
+      <main className="mx-auto max-w-3xl px-4 pt-24 pb-16">
         {/* Article header */}
         <header className="mb-10">
           <p className="mb-4 text-xs font-bold uppercase tracking-widest text-blue-400">
@@ -101,7 +98,7 @@ export default async function ArticlePage({
         {/* Block content */}
         <ArticleBlockRenderer blocks={article.blocks} />
 
-        {/* Footer spacer */}
+        {/* Back link */}
         <div className="mt-16 border-t border-white/10 pt-8 text-center">
           <a
             href="/articles"
@@ -111,7 +108,6 @@ export default async function ArticlePage({
           </a>
         </div>
       </main>
-      <Footer />
     </div>
   );
 }

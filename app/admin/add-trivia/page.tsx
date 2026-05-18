@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import dynamic from "next/dynamic"
-import { Navbar } from "@/components/navbar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -424,8 +423,7 @@ function AddTriviaContent() {
   // ─── Render ───────────────────────────────────────────────────────────────────
   return (
     <>
-      <Navbar />
-      <div className="min-h-screen pt-20 pb-20 px-4" style={{ backgroundColor: "#2eaafd" }}>
+      <div className="min-h-screen pt-6 pb-20 px-4" style={{ backgroundColor: "#2eaafd" }}>
         <div className="max-w-3xl mx-auto">
 
           {/* Header */}

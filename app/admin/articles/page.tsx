@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Navbar } from "@/components/navbar";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -102,7 +101,6 @@ export default function AdminArticlesPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#051a2e] to-[#0a2d52]">
-      <Navbar />
       <main className="mx-auto max-w-5xl px-4 py-10">
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">

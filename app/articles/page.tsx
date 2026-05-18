@@ -1,6 +1,4 @@
 import { Metadata } from "next";
-import { Navbar } from "@/components/navbar";
-import { Footer } from "@/components/footer";
 import { ArticleCard } from "@/components/articles/article-card";
 import type { ArticleListItem } from "@/components/articles/types";
 
@@ -34,8 +32,7 @@ export default async function ArticlesPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#051a2e] to-[#0a2d52]">
-      <Navbar />
-      <main className="mx-auto max-w-6xl px-4 py-14">
+      <main className="mx-auto max-w-6xl px-4 pt-24 pb-14">
         <div className="mb-12">
           <h1 className="text-4xl font-bold text-white">Articles</h1>
           <p className="mt-2 text-white/50">
@@ -57,7 +54,6 @@ export default async function ArticlesPage() {
           </div>
         )}
       </main>
-      <Footer />
     </div>
   );
 }

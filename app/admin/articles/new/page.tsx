@@ -2,7 +2,6 @@
 
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Navbar } from "@/components/navbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -82,7 +81,6 @@ export default function NewArticlePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#051a2e] to-[#0a2d52]">
-      <Navbar />
       <main className="mx-auto max-w-4xl px-4 py-8">
         {/* Top bar */}
         <div className="mb-8 flex items-center justify-between">
