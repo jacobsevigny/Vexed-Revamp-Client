@@ -158,3 +158,145 @@ export async function getAllNames(table: string): Promise<string[]> {
   );
   return res || [];
 }
+
+// ─── Article types ────────────────────────────────────────────────────────────
+
+export type ArticleBlock = {
+  id: string;
+  type: "paragraph" | "header" | "image";
+  content?: string;
+  url?: string;
+  caption?: string;
+  alt?: string;
+};
+
+export type Article = {
+  id: number;
+  title: string;
+  slug: string;
+  authorName: string;
+  authorId?: number | null;
+  status: "draft" | "published";
+  seoTitle?: string | null;
+  seoDesc?: string | null;
+  blocks: ArticleBlock[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ArticleListItem = {
+  id: number;
+  title: string;
+  slug: string;
+  authorName: string;
+  status: "draft" | "published";
+  seoDesc?: string | null;
+  blocks?: ArticleBlock[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+// ─── Public article API ───────────────────────────────────────────────────────
+
+export async function getPublishedArticles(
+  page = 1,
+  limit = 20
+): Promise<{ articles: ArticleListItem[]; total: number }> {
+  const res = await fetch(
+    buildUrl(`/api/articles?page=${page}&limit=${limit}`),
+    { credentials: "include" }
+  );
+  if (!res.ok) throw new Error("Failed to fetch articles");
+  return res.json();
+}
+
+export async function getArticleBySlug(slug: string): Promise<Article | null> {
+  const res = await fetch(buildUrl(`/api/articles/${slug}`), {
+    credentials: "include",
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error("Failed to fetch article");
+  return res.json();
+}
+
+// ─── Admin article API ────────────────────────────────────────────────────────
+
+export async function adminGetAllArticles(): Promise<{
+  articles: ArticleListItem[];
+}> {
+  const res = await authFetch("/api/admin/articles");
+  if (!res.ok) throw new Error("Failed to fetch articles");
+  return res.json();
+}
+
+export async function adminGetArticle(id: number): Promise<Article> {
+  const res = await authFetch(`/api/admin/articles/${id}`);
+  if (!res.ok) throw new Error("Failed to fetch article");
+  return res.json();
+}
+
+export async function adminCreateArticle(data: {
+  title: string;
+  authorName: string;
+  status: "draft" | "published";
+  blocks: ArticleBlock[];
+  seoTitle?: string;
+  seoDesc?: string | null;
+}): Promise<Article> {
+  const res = await authFetch("/api/admin/articles", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as { error?: string };
+    throw new Error(err.error || "Failed to create article");
+  }
+  return res.json();
+}
+
+export async function adminUpdateArticle(
+  id: number,
+  data: {
+    title?: string;
+    authorName?: string;
+    status?: "draft" | "published";
+    blocks?: ArticleBlock[];
+    seoTitle?: string | null;
+    seoDesc?: string | null;
+  }
+): Promise<Article> {
+  const res = await authFetch(`/api/admin/articles/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as { error?: string };
+    throw new Error(err.error || "Failed to update article");
+  }
+  return res.json();
+}
+
+export async function adminUpdateArticleStatus(
+  id: number,
+  status: "draft" | "published"
+): Promise<{ id: number; status: string; slug: string }> {
+  const res = await authFetch(`/api/admin/articles/${id}/status`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as { error?: string };
+    throw new Error(err.error || "Failed to update status");
+  }
+  return res.json();
+}
+
+export async function adminDeleteArticle(id: number): Promise<void> {
+  const res = await authFetch(`/api/admin/articles/${id}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error("Failed to delete article");
+}
