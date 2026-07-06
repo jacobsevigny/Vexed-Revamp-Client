@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { HeroSection } from "@/components/hero-section"
 import { GamesSection } from "@/components/games-section"
+import { HomeArticlesSection } from "@/components/articles/home-articles-section"
 
 export const metadata: Metadata = {
   title: "Vexed Sports – Free Daily Sports Trivia",
@@ -16,6 +17,7 @@ export default function Home() {
     <main className="min-h-screen">
       <HeroSection />
       <GamesSection />
+      <HomeArticlesSection />
     </main>
   )
 }
