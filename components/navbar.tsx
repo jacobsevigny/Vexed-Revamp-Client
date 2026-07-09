@@ -102,7 +102,7 @@ export function Navbar() {
                 {/* Admin link (admin only) */}
                 {user?.isAdmin && (
                   <Link
-                    href="/admin/add-trivia"
+                    href="/admin"
                     className="flex items-center gap-1.5 text-white/70 hover:text-white font-medium transition-colors text-sm"
                     title="Admin panel"
                   >

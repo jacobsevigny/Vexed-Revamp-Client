@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import dynamic from "next/dynamic"
-import { Navbar } from "@/components/navbar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -159,17 +158,77 @@ function AddTriviaContent() {
   const [ffAnswers, setFfAnswers]   = useState<string[]>(Array(8).fill(""))
 
   // ── Career Path ──────────────────────────────────────────────────────────────
-  const [cpSport,  setCpSport]  = useState("NFL")
-  const [cpPlayer, setCpPlayer] = useState("")
-  const [cpTeams,  setCpTeams]  = useState<CPTeam[]>([{ ...BLANK_TEAM }])
+  const [cpSport,         setCpSport]         = useState("NFL")
+  const [cpPlayer,        setCpPlayer]        = useState("")
+  const [cpTeams,         setCpTeams]         = useState<CPTeam[]>([{ ...BLANK_TEAM }])
+  const [cpSearchResults, setCpSearchResults] = useState<string[]>([])
+  const [cpSearchLoading, setCpSearchLoading] = useState(false)
+  const [cpTeamsLoading,  setCpTeamsLoading]  = useState(false)
+  const cpSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // ── Draft Class ───────────────────────────────────────────────────────────────
-  const [dcTeam,  setDcTeam]  = useState("")
-  const [dcYear,  setDcYear]  = useState("")
-  const [dcPicks, setDcPicks] = useState<DcPick[]>([{ ...BLANK_PICK }])
+  const [dcTeam,        setDcTeam]        = useState("")
+  const [dcYear,        setDcYear]        = useState("")
+  const [dcPicks,       setDcPicks]       = useState<DcPick[]>([{ ...BLANK_PICK }])
+  const [dcLoadingPicks, setDcLoadingPicks] = useState(false)
 
   const updateDcPick = (i: number, patch: Partial<DcPick>) =>
     setDcPicks(prev => prev.map((p, idx) => idx === i ? { ...p, ...patch } : p))
+
+  // ── Career Path NFL search handlers ──────────────────────────────────────────
+
+  const handleCpPlayerChange = useCallback((val: string) => {
+    setCpPlayer(val)
+    if (cpSport !== "NFL") return
+    if (cpSearchTimer.current) clearTimeout(cpSearchTimer.current)
+    if (!val.trim() || val.trim().length < 2) { setCpSearchResults([]); return }
+    setCpSearchLoading(true)
+    cpSearchTimer.current = setTimeout(async () => {
+      try {
+        const res = await authFetch(`/api/admin/career-path/player-search?q=${encodeURIComponent(val)}`)
+        if (res.ok) setCpSearchResults(await res.json())
+      } catch { /* ignore */ } finally { setCpSearchLoading(false) }
+    }, 300)
+  }, [cpSport])
+
+  const handleCpPlayerSelect = useCallback(async (val: string) => {
+    setCpPlayer(val)
+    if (cpSport !== "NFL") return
+    setCpTeamsLoading(true)
+    try {
+      const res = await authFetch(`/api/admin/career-path/player-teams?name=${encodeURIComponent(val)}`)
+      if (res.ok) {
+        const data: { abbreviation: string; teamName: string; logoUrl: string | null; years: string }[] = await res.json()
+        if (data.length > 0) setCpTeams(data.map(d => ({ name: d.teamName, years: d.years })))
+      }
+    } catch { /* ignore */ } finally { setCpTeamsLoading(false) }
+  }, [cpSport])
+
+  // ── Draft Class load handler ──────────────────────────────────────────────────
+
+  const handleLoadDraftClass = useCallback(async () => {
+    if (!dcTeam.trim() || !dcYear.trim()) return
+    setDcLoadingPicks(true)
+    try {
+      // Backend accepts the full team name and resolves the PFR abbreviation internally
+      const res = await authFetch(`/api/admin/draft-class/picks?team=${encodeURIComponent(dcTeam.trim())}&year=${encodeURIComponent(dcYear.trim())}`)
+      if (res.ok) {
+        const data: { playerName: string; round: number | null; pickOverall: number | null; position: string; college: string }[] = await res.json()
+        if (data.length > 0) {
+          setDcPicks(data.map(d => ({
+            round:       String(d.round       ?? ""),
+            pickOverall: String(d.pickOverall  ?? ""),
+            position:    d.position   || "",
+            playerName:  d.playerName || "",
+            college:     d.college    || "",
+          })))
+        }
+      } else {
+        const err = await res.json().catch(() => ({ error: res.statusText }))
+        toast({ title: "Load failed", description: err.error, variant: "destructive" })
+      }
+    } catch { /* ignore */ } finally { setDcLoadingPicks(false) }
+  }, [dcTeam, dcYear, toast])
 
   const cpSportOpt  = SPORT_OPTIONS.find(s => s.label === cpSport) || SPORT_OPTIONS[0]
   const cpPlayersDb = cpSportOpt.players
@@ -183,9 +242,13 @@ function AddTriviaContent() {
   useEffect(() => { if (ffDb) fetchNames(ffDb) }, [ffDb, fetchNames])
 
   useEffect(() => {
-    fetchNames(cpPlayersDb)
+    // NFL players come from the search endpoint, not the static cache
+    if (cpSport !== "NFL") fetchNames(cpPlayersDb)
     fetchNames(cpTeamsDb)
-  }, [cpPlayersDb, cpTeamsDb, fetchNames])
+  }, [cpSport, cpPlayersDb, cpTeamsDb, fetchNames])
+
+  // Prefetch NFL team names for the Draft Class team autocomplete
+  useEffect(() => { fetchNames("nfl_teams") }, [fetchNames])
 
   // ── Load existing data when date changes ─────────────────────────────────────
   useEffect(() => {
@@ -424,8 +487,7 @@ function AddTriviaContent() {
   // ─── Render ───────────────────────────────────────────────────────────────────
   return (
     <>
-      <Navbar />
-      <div className="min-h-screen pt-20 pb-20 px-4" style={{ backgroundColor: "#2eaafd" }}>
+      <div className="min-h-screen pt-6 pb-20 px-4" style={{ backgroundColor: "#2eaafd" }}>
         <div className="max-w-3xl mx-auto">
 
           {/* Header */}
@@ -670,7 +732,7 @@ function AddTriviaContent() {
                   <Label className="mb-1.5 block text-sm font-medium text-white/80">Sport</Label>
                   <Select
                     value={cpSport}
-                    onValueChange={sport => { setCpSport(sport); setCpPlayer(""); setCpTeams([{ ...BLANK_TEAM }]) }}
+                    onValueChange={sport => { setCpSport(sport); setCpPlayer(""); setCpTeams([{ ...BLANK_TEAM }]); setCpSearchResults([]) }}
                   >
                     <SelectTrigger className={DARK_TRIGGER}>
                       <SelectValue />
@@ -686,10 +748,11 @@ function AddTriviaContent() {
                   <Label className="mb-1.5 block text-sm font-medium text-white/80">Player</Label>
                   <AutocompleteInput
                     value={cpPlayer}
-                    onChange={setCpPlayer}
-                    onSelect={setCpPlayer}
-                    suggestions={cache[cpPlayersDb] || []}
+                    onChange={handleCpPlayerChange}
+                    onSelect={handleCpPlayerSelect}
+                    suggestions={cpSport === "NFL" ? cpSearchResults : (cache[cpPlayersDb] || [])}
                     placeholder="Start typing a player name…"
+                    loading={cpSearchLoading}
                     exactMatch
                     className={DARK_INPUT}
                   />
@@ -700,6 +763,7 @@ function AddTriviaContent() {
                 <Label className="mb-2 block text-sm font-medium text-white/80">
                   Team Path{" "}
                   <span className="text-white/40 font-normal">(chronological order)</span>
+                  {cpTeamsLoading && <Loader2 className="inline ml-2 h-3.5 w-3.5 animate-spin text-white/40" />}
                 </Label>
                 <div className="flex flex-col gap-2">
                   {cpTeams.map((team, i) => (
@@ -763,32 +827,44 @@ function AddTriviaContent() {
             </div>
 
             <div className="flex flex-col gap-4">
-              {/* Team + Year row */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
+              {/* Team + Year + Load button row */}
+              <div className="flex flex-col sm:flex-row items-end gap-3">
+                <div className="flex-1">
                   <Label className="mb-1.5 block text-sm font-medium text-white/80">NFL Team</Label>
                   <AutocompleteInput
                     value={dcTeam}
                     onChange={setDcTeam}
                     onSelect={setDcTeam}
                     suggestions={cache["nfl_teams"] || []}
-                    placeholder="e.g. New Orleans Saints"
+                    placeholder="e.g. Kansas City Chiefs"
                     exactMatch
                     className={DARK_INPUT}
                   />
                 </div>
-                <div>
+                <div className="w-32 shrink-0">
                   <Label className="mb-1.5 block text-sm font-medium text-white/80">Draft Year</Label>
                   <Input
                     value={dcYear}
                     onChange={e => setDcYear(e.target.value)}
-                    placeholder="e.g. 2019"
+                    placeholder="e.g. 2021"
                     type="number"
                     min="1936"
                     max={new Date().getFullYear()}
                     className={DARK_INPUT}
                   />
                 </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!dcTeam.trim() || !dcYear.trim() || dcLoadingPicks}
+                  onClick={handleLoadDraftClass}
+                  className="shrink-0 bg-white/5 border-white/20 text-white hover:bg-white/10 hover:text-white"
+                >
+                  {dcLoadingPicks
+                    ? <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Loading…</>
+                    : "Load Draft Class"
+                  }
+                </Button>
               </div>
 
               {/* Picks */}
