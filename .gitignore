@@ -8,3 +8,7 @@ out
 node_modules
 .env
 .env.local
+.open-next
+.wrangler
+.dev.vars
+cloudflare-env.d.ts

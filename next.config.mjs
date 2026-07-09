@@ -10,9 +10,13 @@
  *    are created at runtime and therefore cannot be enumerated at build time.
  *  - ISR (next: { revalidate }) used on the public article pages.
  *  - The Next.js middleware that protects /admin/* routes.
- * Deploy to Vercel (zero-config) or any Node.js host using `next build && next start`.
- * For Cloudflare, use @cloudflare/next-on-pages instead of static Pages hosting.
+ * Deploy to Vercel (zero-config), any Node.js host via `next build && next start`,
+ * or Cloudflare Workers via @opennextjs/cloudflare (see wrangler.jsonc).
  */
+import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
+
+initOpenNextCloudflareForDev();
+
 const dev = process.env.NODE_ENV !== "production";
 
 const rewrites = async () => {
