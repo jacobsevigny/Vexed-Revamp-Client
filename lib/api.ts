@@ -278,6 +278,21 @@ export async function adminUpdateArticle(
   return res.json();
 }
 
+// Clears the Next.js ISR cache for the public article pages so a delete,
+// publish, or unpublish shows up on the live site right away rather than
+// after the `revalidate: 60` window expires.
+async function revalidateArticleCache(slug?: string) {
+  try {
+    await fetch("/api/revalidate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slug }),
+    });
+  } catch {
+    // best-effort — the page will still self-heal on the next ISR revalidation
+  }
+}
+
 export async function adminUpdateArticleStatus(
   id: number,
   status: "draft" | "published"
@@ -291,12 +306,15 @@ export async function adminUpdateArticleStatus(
     const err = await res.json().catch(() => ({})) as { error?: string };
     throw new Error(err.error || "Failed to update status");
   }
-  return res.json();
+  const result = await res.json();
+  await revalidateArticleCache(result.slug);
+  return result;
 }
 
-export async function adminDeleteArticle(id: number): Promise<void> {
+export async function adminDeleteArticle(id: number, slug?: string): Promise<void> {
   const res = await authFetch(`/api/admin/articles/${id}`, {
     method: "DELETE",
   });
   if (!res.ok) throw new Error("Failed to delete article");
+  await revalidateArticleCache(slug);
 }

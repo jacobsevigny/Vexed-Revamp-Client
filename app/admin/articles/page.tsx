@@ -81,11 +81,11 @@ export default function AdminArticlesPage() {
     }
   }
 
-  async function handleDelete(id: number, title: string) {
+  async function handleDelete(id: number, title: string, slug: string) {
     if (!confirm(`Delete "${title}"? This cannot be undone.`)) return;
     setActionId(id);
     try {
-      await adminDeleteArticle(id);
+      await adminDeleteArticle(id, slug);
       setArticles((prev) => prev.filter((a) => a.id !== id));
       toast({ title: "Deleted", description: "Article deleted" });
     } catch {
@@ -192,7 +192,9 @@ export default function AdminArticlesPage() {
                     <Pencil size={15} />
                   </button>
                   <button
-                    onClick={() => handleDelete(article.id, article.title)}
+                    onClick={() =>
+                      handleDelete(article.id, article.title, article.slug)
+                    }
                     disabled={actionId === article.id}
                     title="Delete"
                     className="rounded-lg p-2 text-white/35 transition-colors hover:bg-red-500/15 hover:text-red-400 disabled:opacity-40"
