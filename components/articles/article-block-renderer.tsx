@@ -27,12 +27,12 @@ function BlockComponent({ block }: { block: Block }) {
     const img = block as ImageBlock;
     return (
       <figure className="space-y-2">
-        <div className="overflow-hidden rounded-xl bg-white/5">
+        <div className="aspect-[16/9] w-full overflow-hidden rounded-xl bg-white/5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={img.url}
             alt={img.alt || img.caption || "Article image"}
-            className="w-full h-auto object-cover"
+            className="h-full w-full object-cover object-top"
             loading="lazy"
           />
         </div>

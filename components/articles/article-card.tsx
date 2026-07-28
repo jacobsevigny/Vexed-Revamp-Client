@@ -45,12 +45,12 @@ export function ArticleCard({ article }: Props) {
     <Link href={`/articles/${article.slug}`} className="group block h-full">
       <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] transition-all hover:border-white/25 hover:bg-white/[0.07]">
         {firstImage && (
-          <div className="relative h-44 shrink-0 overflow-hidden">
+          <div className="relative aspect-[16/9] w-full shrink-0 overflow-hidden">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={firstImage}
               alt={article.title}
-              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+              className="h-full w-full object-cover object-top transition-transform duration-300 group-hover:scale-105"
             />
           </div>
         )}
