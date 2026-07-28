@@ -1,11 +1,35 @@
 "use client"
 
-import { Suspense, useState, useEffect, useCallback } from "react"
+import { Suspense, useState, useEffect, useCallback, useRef } from "react"
 import { authFetch } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { Trophy, Target, TrendingUp, ClipboardList, Loader2, Check, X, ArrowLeft, ShieldOff } from "lucide-react"
+import Image from "next/image"
+import { Trophy, Loader2, Check, X, ArrowLeft, ShieldOff } from "lucide-react"
+import { GAMES } from "@/lib/games-config"
+
+// ─── Tab config ───────────────────────────────────────────────────────────────
+// Single source of truth for each mode's accent color, used by both the tab bar
+// and the panel's left accent bar. Tab icons reuse the same brand PNG badges as
+// the Games page / nav hub (via GAMES in games-config.ts) rather than a separate
+// icon set — those images are dense illustrations with a baked-in wordmark, so
+// they only read cleanly at ~44px+ (nothing else in the app uses them smaller
+// than 52px either), hence the larger chip size below instead of a compact
+// inline icon.
+
+type ModeKey = "dailyQuest" | "fanFeud" | "careerPath" | "draftClass"
+
+const MODES: { key: ModeKey; label: string; iconUrl: string; border: string; text: string; chip: string }[] = [
+  { key: "dailyQuest", label: "Daily Quest", iconUrl: GAMES.find(g => g.id === "dailyquest")!.iconUrl,
+    border: "border-cyan-500",    text: "text-cyan-400",    chip: "bg-cyan-500/10" },
+  { key: "fanFeud",    label: "Fan Feud",    iconUrl: GAMES.find(g => g.id === "fanfeud")!.iconUrl,
+    border: "border-pink-500",    text: "text-pink-400",    chip: "bg-pink-500/10" },
+  { key: "careerPath", label: "Career Path", iconUrl: GAMES.find(g => g.id === "careerpath")!.iconUrl,
+    border: "border-emerald-500", text: "text-emerald-400", chip: "bg-emerald-500/10" },
+  { key: "draftClass", label: "Draft Class", iconUrl: GAMES.find(g => g.id === "draftclass")!.iconUrl,
+    border: "border-indigo-500",  text: "text-indigo-400",  chip: "bg-indigo-500/10" },
+]
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -58,22 +82,50 @@ function pct(num: number, den: number): string {
 }
 
 // ─── Simple dot — no hover, no tooltip ───────────────────────────────────────
+// One size used everywhere so the newest game row doesn't outweigh older ones.
 
-/** Large dot for the most recent game row. */
 function Dot({ correct }: { correct: boolean }) {
   return (
-    <div className={`h-7 w-7 rounded-full shrink-0 ${
+    <div className={`h-5 w-5 rounded-full shrink-0 ${
       correct ? "bg-emerald-500" : "bg-red-500"
     }`} />
   )
 }
 
-/** Small dot for the previous-game rows. */
-function SmallDot({ correct }: { correct: boolean }) {
+/** Uniform correct/incorrect circle used by Career Path & Draft Class rows. */
+function ResultIcon({ ok }: { ok: boolean }) {
   return (
-    <div className={`h-4 w-4 rounded-full shrink-0 ${
-      correct ? "bg-emerald-500" : "bg-red-500"
-    }`} />
+    <div className={`h-7 w-7 rounded-full flex items-center justify-center shrink-0 ${
+      ok ? "bg-emerald-500" : "bg-red-500"
+    }`}>
+      {ok ? <Check className="h-4 w-4 text-white" /> : <X className="h-4 w-4 text-white" />}
+    </div>
+  )
+}
+
+/** One row in a "Recent Games" list — identical size/type regardless of recency. */
+function GameRow({ date, detail, indicator, badge, badgeColor }: {
+  date: string
+  detail?: string
+  indicator: React.ReactNode
+  badge?: string
+  badgeColor?: string
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-xl bg-white/5 border border-white/10 px-4 py-3">
+      <div className="flex flex-col min-w-0">
+        <span className="text-white/70 text-sm font-medium">{date}</span>
+        {detail && <span className="text-white/40 text-xs mt-0.5 truncate">{detail}</span>}
+      </div>
+      <div className="flex items-center gap-3 shrink-0">
+        {indicator}
+        {badge && (
+          <span className={`font-bold text-sm tabular-nums whitespace-nowrap ${badgeColor ?? "text-white"}`}>
+            {badge}
+          </span>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -97,29 +149,20 @@ function CareerCard({ children }: { children: React.ReactNode }) {
   )
 }
 
-// ─── Game section shell ───────────────────────────────────────────────────────
-// `borderColor` is a Tailwind border-color class (e.g. "border-cyan-500").
-// The same color frames the entire card — no separate accent bar at the top.
+// ─── Game section body ────────────────────────────────────────────────────────
+// Renders inside the shared tab panel below, which owns the card chrome
+// (background, rounding, left accent bar) — this is content only.
 
-function GameSection({ icon, title, borderColor, career, mostRecent, history }: {
-  icon: React.ReactNode; title: string; borderColor: string
-  career: React.ReactNode; mostRecent: React.ReactNode; history: React.ReactNode
+function GameSection({ title, career, rows }: {
+  title: string
+  career: React.ReactNode; rows: React.ReactNode
 }) {
   return (
-    <div
-      className={`rounded-2xl border-2 ${borderColor} shadow-xl overflow-visible`}
-      style={{ backgroundColor: "#082644" }}
-    >
-      <div className="px-6 py-5">
-        <div className="flex items-center gap-2 mb-4">
-          {icon}
-          <h2 className="text-xl font-bold text-white">{title}</h2>
-        </div>
-        {career}
-        <p className="text-white/30 text-[10px] uppercase tracking-widest mb-3">Recent Games</p>
-        {mostRecent}
-        {history}
-      </div>
+    <div>
+      <h2 className="text-xl font-bold text-white mb-4">{title}</h2>
+      {career}
+      <p className="text-white/30 text-[10px] uppercase tracking-widest mb-3">Recent Games</p>
+      {rows}
     </div>
   )
 }
@@ -136,56 +179,38 @@ function DailyQuestSection({ entries, career }: { entries: DQEntry[]; career: DQ
   )
 
   if (entries.length === 0) return (
-    <GameSection icon={<Target className="h-5 w-5 text-cyan-400" />} title="Daily Quest"
-      borderColor="border-cyan-500" career={careerCard}
-      mostRecent={<p className="text-white/40 text-sm py-3 text-center">No games played yet</p>}
-      history={null} />
+    <GameSection title="Daily Quest"
+      career={careerCard}
+      rows={<p className="text-white/40 text-sm py-3 text-center">No games played yet</p>} />
   )
 
-  const [recent, ...prev] = entries
-
-  // Most recent: large circles, full date + score header
-  const mostRecent = (
-    <div className="rounded-xl bg-white/5 border border-white/10 px-5 py-4 mb-3">
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-white font-semibold text-base">{fmtDate(recent.date)}</span>
-        <span className="text-cyan-300 font-bold text-lg">{recent.score}/5</span>
-      </div>
-      {/* Circles from detailed progress if available, else score-based */}
-      <div className="flex gap-2 flex-wrap">
-        {Array.from({ length: 5 }, (_, i) => {
-          const correct = recent.progress
-            ? (recent.progress.find(p => p.index === i)?.correct ?? false)
-            : i < recent.score
-          return <Dot key={i} correct={correct} />
-        })}
-      </div>
-    </div>
-  )
-
-  // Previous 4: smaller circles + date + score
-  const history = prev.length > 0 ? (
+  // Every row — most recent included — uses the same size, padding, and dots.
+  const rows = (
     <div className="space-y-2">
-      {prev.map((e, i) => (
-        <div key={i} className="flex items-center justify-between rounded-xl bg-white/5 border border-white/10 px-4 py-2.5">
-          <span className="text-white/50 text-sm">{fmtDate(e.date)}</span>
-          <div className="flex items-center gap-2">
-            <div className="flex gap-1">
-              {Array.from({ length: 5 }, (_, ci) => (
-                <SmallDot key={ci} correct={ci < e.score} />
-              ))}
+      {entries.map((e, i) => (
+        <GameRow
+          key={i}
+          date={fmtDate(e.date)}
+          badge={`${e.score}/5`}
+          badgeColor="text-cyan-300"
+          indicator={
+            <div className="flex gap-1.5 flex-wrap justify-end">
+              {Array.from({ length: 5 }, (_, ci) => {
+                const correct = e.progress
+                  ? (e.progress.find(p => p.index === ci)?.correct ?? false)
+                  : ci < e.score
+                return <Dot key={ci} correct={correct} />
+              })}
             </div>
-            <span className="text-white/50 text-xs tabular-nums w-6 text-right">{e.score}/5</span>
-          </div>
-        </div>
+          }
+        />
       ))}
     </div>
-  ) : null
+  )
 
   return (
-    <GameSection icon={<Target className="h-5 w-5 text-cyan-400" />} title="Daily Quest"
-      borderColor="border-cyan-500" career={careerCard}
-      mostRecent={mostRecent} history={history} />
+    <GameSection title="Daily Quest"
+      career={careerCard} rows={rows} />
   )
 }
 
@@ -201,56 +226,40 @@ function FanFeudSection({ entries, career }: { entries: FFEntry[]; career: FFCar
   )
 
   if (entries.length === 0) return (
-    <GameSection icon={<Trophy className="h-5 w-5 text-pink-400" />} title="Fan Feud"
-      borderColor="border-pink-500" career={careerCard}
-      mostRecent={<p className="text-white/40 text-sm py-3 text-center">No games played yet</p>}
-      history={null} />
+    <GameSection title="Fan Feud"
+      career={careerCard}
+      rows={<p className="text-white/40 text-sm py-3 text-center">No games played yet</p>} />
   )
 
-  const [recent, ...prev] = entries
-  const total = recent.totalAnswers || 0
-
-  // Most recent: large circles from revealedAnswers if available, else score-based
-  const mostRecent = (
-    <div className="rounded-xl bg-white/5 border border-white/10 px-5 py-4 mb-3">
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-white font-semibold text-base">{fmtDate(recent.date)}</span>
-        <span className="text-pink-300 font-bold text-lg">{recent.score}/{total}</span>
-      </div>
-      <div className="flex gap-2 flex-wrap">
-        {Array.from({ length: total }, (_, i) => {
-          const correct = recent.revealedAnswers
-            ? recent.revealedAnswers[i] === true
-            : i < recent.score
-          return <Dot key={i} correct={correct} />
-        })}
-      </div>
-    </div>
-  )
-
-  // Previous 4: smaller circles (score-based) + date + score
-  const history = prev.length > 0 ? (
+  const rows = (
     <div className="space-y-2">
-      {prev.map((e, i) => (
-        <div key={i} className="flex items-center justify-between rounded-xl bg-white/5 border border-white/10 px-4 py-2.5">
-          <span className="text-white/50 text-sm">{fmtDate(e.date)}</span>
-          <div className="flex items-center gap-2">
-            <div className="flex gap-1 flex-wrap justify-end">
-              {Array.from({ length: e.totalAnswers || 0 }, (_, ci) => (
-                <SmallDot key={ci} correct={ci < e.score} />
-              ))}
-            </div>
-            <span className="text-white/50 text-xs tabular-nums shrink-0">{e.score}/{e.totalAnswers}</span>
-          </div>
-        </div>
-      ))}
+      {entries.map((e, i) => {
+        const total = e.totalAnswers || 0
+        return (
+          <GameRow
+            key={i}
+            date={fmtDate(e.date)}
+            badge={`${e.score}/${total}`}
+            badgeColor="text-pink-300"
+            indicator={
+              <div className="flex gap-1.5 flex-wrap justify-end max-w-[140px]">
+                {Array.from({ length: total }, (_, ci) => {
+                  const correct = e.revealedAnswers
+                    ? e.revealedAnswers[ci] === true
+                    : ci < e.score
+                  return <Dot key={ci} correct={correct} />
+                })}
+              </div>
+            }
+          />
+        )
+      })}
     </div>
-  ) : null
+  )
 
   return (
-    <GameSection icon={<Trophy className="h-5 w-5 text-pink-400" />} title="Fan Feud"
-      borderColor="border-pink-500" career={careerCard}
-      mostRecent={mostRecent} history={history} />
+    <GameSection title="Fan Feud"
+      career={careerCard} rows={rows} />
   )
 }
 
@@ -265,58 +274,31 @@ function CareerPathSection({ entries, career }: { entries: CPEntry[]; career: CP
   )
 
   if (entries.length === 0) return (
-    <GameSection icon={<TrendingUp className="h-5 w-5 text-teal-400" />} title="Career Path"
-      borderColor="border-emerald-500" career={careerCard}
-      mostRecent={<p className="text-white/40 text-sm py-3 text-center">No games played yet</p>}
-      history={null} />
+    <GameSection title="Career Path"
+      career={careerCard}
+      rows={<p className="text-white/40 text-sm py-3 text-center">No games played yet</p>} />
   )
 
-  const [recent, ...prev] = entries
-
-  // Most recent: large check/X circle + guess-count text
-  const mostRecent = (
-    <div className="rounded-xl bg-white/5 border border-white/10 px-5 py-4 mb-3">
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-white font-semibold text-base">{fmtDate(recent.date)}</span>
-        <span className={`font-bold text-lg ${recent.correct ? "text-emerald-400" : "text-red-400"}`}>
-          {recent.correct ? "Correct" : "Incorrect"}
-        </span>
-      </div>
-      <div className="flex items-center gap-3">
-        <div className={`h-9 w-9 rounded-full flex items-center justify-center shrink-0 ${recent.correct ? "bg-emerald-500" : "bg-red-500"}`}>
-          {recent.correct
-            ? <Check className="h-5 w-5 text-white" />
-            : <X className="h-5 w-5 text-white" />}
-        </div>
-        <p className="text-white/50 text-sm">
-          {recent.incorrectGuesses === 0
-            ? "Guessed on first try"
-            : `${recent.incorrectGuesses} wrong guess${recent.incorrectGuesses !== 1 ? "es" : ""}`}
-        </p>
-      </div>
-    </div>
-  )
-
-  // Previous 4: small check/X circle + date
-  const history = prev.length > 0 ? (
+  const rows = (
     <div className="space-y-2">
-      {prev.map((e, i) => (
-        <div key={i} className="flex items-center justify-between rounded-xl bg-white/5 border border-white/10 px-4 py-2.5">
-          <span className="text-white/50 text-sm">{fmtDate(e.date)}</span>
-          <div className={`h-6 w-6 rounded-full flex items-center justify-center shrink-0 ${e.correct ? "bg-emerald-500" : "bg-red-500"}`}>
-            {e.correct
-              ? <Check className="h-3.5 w-3.5 text-white" />
-              : <X className="h-3.5 w-3.5 text-white" />}
-          </div>
-        </div>
+      {entries.map((e, i) => (
+        <GameRow
+          key={i}
+          date={fmtDate(e.date)}
+          detail={e.incorrectGuesses === 0
+            ? "Guessed on first try"
+            : `${e.incorrectGuesses} wrong guess${e.incorrectGuesses !== 1 ? "es" : ""}`}
+          badge={e.correct ? "Correct" : "Incorrect"}
+          badgeColor={e.correct ? "text-emerald-400" : "text-red-400"}
+          indicator={<ResultIcon ok={e.correct} />}
+        />
       ))}
     </div>
-  ) : null
+  )
 
   return (
-    <GameSection icon={<TrendingUp className="h-5 w-5 text-teal-400" />} title="Career Path"
-      borderColor="border-emerald-500" career={careerCard}
-      mostRecent={mostRecent} history={history} />
+    <GameSection title="Career Path"
+      career={careerCard} rows={rows} />
   )
 }
 
@@ -332,61 +314,31 @@ function DraftClassSection({ entries, career }: { entries: DCEntry[]; career: DC
   )
 
   if (entries.length === 0) return (
-    <GameSection icon={<ClipboardList className="h-5 w-5 text-indigo-400" />} title="Draft Class"
-      borderColor="border-indigo-500" career={careerCard}
-      mostRecent={<p className="text-white/40 text-sm py-3 text-center">No games played yet</p>}
-      history={null} />
+    <GameSection title="Draft Class"
+      career={careerCard}
+      rows={<p className="text-white/40 text-sm py-3 text-center">No games played yet</p>} />
   )
 
-  const [recent, ...prev] = entries
-
-  const mostRecent = (
-    <div className="rounded-xl bg-white/5 border border-white/10 px-5 py-4 mb-3">
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-white font-semibold text-base">{fmtDate(recent.date)}</span>
-        <span className={`font-bold text-lg ${recent.solved ? "text-emerald-400" : "text-red-400"}`}>
-          {recent.solved ? "Solved" : "Failed"}
-        </span>
-      </div>
-      <div className="flex items-center gap-3">
-        <div className={`h-9 w-9 rounded-full flex items-center justify-center shrink-0 ${recent.solved ? "bg-emerald-500" : "bg-red-500"}`}>
-          {recent.solved
-            ? <Check className="h-5 w-5 text-white" />
-            : <X className="h-5 w-5 text-white" />}
-        </div>
-        <p className="text-white/50 text-sm">
-          {recent.year} Draft ·{" "}
-          {recent.guessesUsed === 1
-            ? "1 guess"
-            : `${recent.guessesUsed} guesses`}
-          {recent.solved && recent.hintLevel === 0 ? " · Perfect (no hints)" : ""}
-        </p>
-      </div>
-    </div>
-  )
-
-  const history = prev.length > 0 ? (
+  const rows = (
     <div className="space-y-2">
-      {prev.map((e, i) => (
-        <div key={i} className="flex items-center justify-between rounded-xl bg-white/5 border border-white/10 px-4 py-2.5">
-          <span className="text-white/50 text-sm">{fmtDate(e.date)}</span>
-          <div className="flex items-center gap-2">
-            <span className="text-white/40 text-xs">{e.year} Draft</span>
-            <div className={`h-6 w-6 rounded-full flex items-center justify-center shrink-0 ${e.solved ? "bg-emerald-500" : "bg-red-500"}`}>
-              {e.solved
-                ? <Check className="h-3.5 w-3.5 text-white" />
-                : <X className="h-3.5 w-3.5 text-white" />}
-            </div>
-          </div>
-        </div>
+      {entries.map((e, i) => (
+        <GameRow
+          key={i}
+          date={fmtDate(e.date)}
+          detail={`${e.year} Draft · ${e.guessesUsed === 1 ? "1 guess" : `${e.guessesUsed} guesses`}${
+            e.solved && e.hintLevel === 0 ? " · Perfect (no hints)" : ""
+          }`}
+          badge={e.solved ? "Solved" : "Failed"}
+          badgeColor={e.solved ? "text-emerald-400" : "text-red-400"}
+          indicator={<ResultIcon ok={e.solved} />}
+        />
       ))}
     </div>
-  ) : null
+  )
 
   return (
-    <GameSection icon={<ClipboardList className="h-5 w-5 text-indigo-400" />} title="Draft Class"
-      borderColor="border-indigo-500" career={careerCard}
-      mostRecent={mostRecent} history={history} />
+    <GameSection title="Draft Class"
+      career={careerCard} rows={rows} />
   )
 }
 
@@ -440,6 +392,8 @@ function StatsPageContent() {
   const [data, setData]       = useState<(GameStats & { username?: string }) | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState<string | null>(null)
+  const [activeModeKey, setActiveModeKey] = useState<ModeKey>("dailyQuest")
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
 
   const load = useCallback(async () => {
     try {
@@ -472,6 +426,20 @@ function StatsPageContent() {
   if (!loading && error) return <ErrorView message={error} />
 
   const viewingUsername = data?.username
+  const activeMode = MODES.find(m => m.key === activeModeKey)!
+
+  function handleTabKeyDown(e: React.KeyboardEvent, index: number) {
+    let nextIndex: number | null = null
+    if (e.key === "ArrowRight") nextIndex = (index + 1) % MODES.length
+    else if (e.key === "ArrowLeft") nextIndex = (index - 1 + MODES.length) % MODES.length
+    else if (e.key === "Home") nextIndex = 0
+    else if (e.key === "End") nextIndex = MODES.length - 1
+    if (nextIndex !== null) {
+      e.preventDefault()
+      setActiveModeKey(MODES[nextIndex].key)
+      tabRefs.current[nextIndex]?.focus()
+    }
+  }
 
   return (
     <div className="min-h-screen pt-24 pb-16 px-4" style={{ backgroundColor: "#2eaafd" }}>
@@ -487,7 +455,10 @@ function StatsPageContent() {
 
         <div className="text-center mb-8">
           {/* "Your Stats" — dark navy text, no trophy icon */}
-          <h1 className="text-4xl md:text-5xl font-bold text-[#082644] mb-2">
+          <h1
+            className="text-4xl md:text-5xl font-bold uppercase tracking-wide text-[#082644] mb-2"
+            style={{ fontFamily: "var(--font-oswald)" }}
+          >
             {isFriendView ? "Stats" : "Your Stats"}
           </h1>
           {isFriendView && viewingUsername ? (
@@ -499,18 +470,65 @@ function StatsPageContent() {
           )}
         </div>
 
-        {loading ? (
-          <div className="flex justify-center py-20">
-            <Loader2 className="h-8 w-8 text-white animate-spin" />
+        <div
+          className={`rounded-2xl border-l-4 ${activeMode.border} shadow-xl overflow-hidden transition-colors`}
+          style={{ backgroundColor: "#082644" }}
+        >
+          <div role="tablist" aria-label="Game mode" className="flex overflow-x-auto border-b border-white/10">
+            {MODES.map((mode, i) => {
+              const selected = mode.key === activeModeKey
+              return (
+                <button
+                  key={mode.key}
+                  ref={(el) => { tabRefs.current[i] = el }}
+                  role="tab"
+                  id={`stats-tab-${mode.key}`}
+                  aria-selected={selected}
+                  aria-controls={`stats-panel-${mode.key}`}
+                  tabIndex={selected ? 0 : -1}
+                  onClick={() => setActiveModeKey(mode.key)}
+                  onKeyDown={(e) => handleTabKeyDown(e, i)}
+                  className={`flex flex-col items-center gap-1 px-4 sm:px-5 pt-3 pb-2.5 text-xs font-semibold whitespace-nowrap shrink-0 border-b-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-inset ${
+                    selected ? `${mode.text} border-current` : "text-white/45 border-transparent hover:text-white/70"
+                  }`}
+                >
+                  <span className={`flex items-center justify-center h-14 w-14 rounded-xl ${mode.chip}`}>
+                    <Image src={mode.iconUrl} alt="" width={44} height={44} className="object-contain" />
+                  </span>
+                  {mode.label}
+                </button>
+              )
+            })}
           </div>
-        ) : (
-          <div className="space-y-5">
-            <DailyQuestSection entries={data?.dailyQuest ?? []} career={data?.career?.dailyQuest ?? EMPTY_DQ_CAREER} />
-            <FanFeudSection    entries={data?.fanFeud    ?? []} career={data?.career?.fanFeud    ?? EMPTY_FF_CAREER} />
-            <CareerPathSection entries={data?.careerPath ?? []} career={data?.career?.careerPath ?? EMPTY_CP_CAREER} />
-            <DraftClassSection entries={data?.draftClass ?? []} career={data?.career?.draftClass ?? EMPTY_DC_CAREER} />
+
+          <div
+            role="tabpanel"
+            id={`stats-panel-${activeMode.key}`}
+            aria-labelledby={`stats-tab-${activeMode.key}`}
+            className="px-6 py-5"
+          >
+            {loading ? (
+              <div className="flex justify-center py-20">
+                <Loader2 className="h-8 w-8 text-white animate-spin" />
+              </div>
+            ) : (
+              <>
+                {activeModeKey === "dailyQuest" && (
+                  <DailyQuestSection entries={data?.dailyQuest ?? []} career={data?.career?.dailyQuest ?? EMPTY_DQ_CAREER} />
+                )}
+                {activeModeKey === "fanFeud" && (
+                  <FanFeudSection entries={data?.fanFeud ?? []} career={data?.career?.fanFeud ?? EMPTY_FF_CAREER} />
+                )}
+                {activeModeKey === "careerPath" && (
+                  <CareerPathSection entries={data?.careerPath ?? []} career={data?.career?.careerPath ?? EMPTY_CP_CAREER} />
+                )}
+                {activeModeKey === "draftClass" && (
+                  <DraftClassSection entries={data?.draftClass ?? []} career={data?.career?.draftClass ?? EMPTY_DC_CAREER} />
+                )}
+              </>
+            )}
           </div>
-        )}
+        </div>
 
       </div>
     </div>
