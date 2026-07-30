@@ -41,39 +41,43 @@ export function GamesSection() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto items-stretch">
           {games.map((game) => (
-            <Card
+            <Link
               key={game.title}
-              className="group hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 border-2 overflow-hidden"
-              style={{ backgroundColor: "#082644" }}
+              href={game.href}
+              className="group block h-full rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-white/50"
             >
-              <CardHeader className="text-center pb-4">
-                <div className="mx-auto mb-4 w-20 h-20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Image
-                    src={game.iconUrl}
-                    alt={`${game.title} game icon`}
-                    width={80}
-                    height={80}
-                    className="object-contain"
-                  />
-                </div>
-                <CardTitle className="text-2xl font-black text-white">{game.title}</CardTitle>
-                <CardDescription className="text-base mt-2 text-pretty leading-relaxed text-white/80">
-                  {game.description}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="text-center pb-6">
-                <Link href={game.href}>
+              <Card
+                className="h-full flex flex-col hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 hover:border-primary border-2 overflow-hidden"
+                style={{ backgroundColor: "#082644" }}
+              >
+                <CardHeader className="text-center pb-4">
+                  <div className="mx-auto mb-4 w-20 h-20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <Image
+                      src={game.iconUrl}
+                      alt={`${game.title} game icon`}
+                      width={80}
+                      height={80}
+                      className="object-contain"
+                    />
+                  </div>
+                  <CardTitle className="text-2xl font-black text-white">{game.title}</CardTitle>
+                  <CardDescription className="text-base mt-2 text-pretty leading-relaxed text-white/80">
+                    {game.description}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="text-center pb-6 mt-auto">
                   <Button
+                    asChild
                     className="w-full font-bold group-hover:scale-105 transition-transform bg-primary hover:bg-primary/90"
                     size="lg"
                   >
-                    Play
+                    <span>Play</span>
                   </Button>
-                </Link>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </Link>
           ))}
         </div>
 
