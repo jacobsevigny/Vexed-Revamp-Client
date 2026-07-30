@@ -3,10 +3,10 @@
 import { Suspense, useState, useEffect, useCallback, useRef } from "react"
 import { authFetch } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
-import { Trophy, Loader2, Check, X, ArrowLeft, ShieldOff } from "lucide-react"
+import { Loader2, Check, X, ArrowLeft, ShieldOff } from "lucide-react"
 import { GAMES } from "@/lib/games-config"
 
 // ─── Tab config ───────────────────────────────────────────────────────────────
@@ -342,25 +342,6 @@ function DraftClassSection({ entries, career }: { entries: DCEntry[]; career: DC
   )
 }
 
-// ─── Guest view ───────────────────────────────────────────────────────────────
-
-function GuestView() {
-  return (
-    <div className="min-h-screen flex items-center justify-center pt-20 px-4" style={{ backgroundColor: "#2eaafd" }}>
-      <div className="rounded-2xl border border-white/10 shadow-xl p-8 text-center max-w-sm w-full" style={{ backgroundColor: "#082644" }}>
-        <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-white/10 flex items-center justify-center">
-          <Trophy className="h-8 w-8 text-white/60" />
-        </div>
-        <h2 className="text-2xl font-bold text-white mb-2">Log in to view stats</h2>
-        <p className="text-white/60 mb-6 text-sm leading-relaxed">Only logged-in users can view game statistics.</p>
-        <Link href="/login?redirect=/stats" className="inline-block bg-[#2eaafd] hover:bg-[#2eaafd]/90 text-white font-semibold px-6 py-2.5 rounded-xl transition-colors">
-          Go to Login
-        </Link>
-      </div>
-    </div>
-  )
-}
-
 // ─── Error view ───────────────────────────────────────────────────────────────
 
 function ErrorView({ message }: { message: string }) {
@@ -384,6 +365,7 @@ function ErrorView({ message }: { message: string }) {
 
 function StatsPageContent() {
   const { isAuthenticated, isHydrated, user } = useAuth()
+  const router = useRouter()
   const searchParams = useSearchParams()
   const targetUserIdParam = searchParams.get("user")
   const ownId = user?.id ? String(user.id) : null
@@ -394,6 +376,11 @@ function StatsPageContent() {
   const [error, setError]     = useState<string | null>(null)
   const [activeModeKey, setActiveModeKey] = useState<ModeKey>("dailyQuest")
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
+
+  // ── Redirect if not logged in ────────────────────────────────────────────────
+  useEffect(() => {
+    if (isHydrated && !isAuthenticated) router.push("/login?redirect=/stats")
+  }, [isAuthenticated, isHydrated, router])
 
   const load = useCallback(async () => {
     try {
@@ -422,7 +409,13 @@ function StatsPageContent() {
     load()
   }, [isHydrated, isAuthenticated, load])
 
-  if (isHydrated && !isAuthenticated) return <GuestView />
+  if (!isHydrated || (!isAuthenticated && isHydrated)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#2eaafd" }}>
+        <Loader2 className="h-8 w-8 text-white animate-spin" />
+      </div>
+    )
+  }
   if (!loading && error) return <ErrorView message={error} />
 
   const viewingUsername = data?.username

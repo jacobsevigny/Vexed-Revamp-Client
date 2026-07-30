@@ -5,6 +5,7 @@ import { Analytics } from "@vercel/analytics/next"
 
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
+import { MobileBottomNav } from "@/components/mobile-bottom-nav"
 import { ThemeProvider } from "@/components/theme-provider"
 import { AuthProvider } from "@/lib/auth-context"
 import "./globals.css"
@@ -60,8 +61,11 @@ export default function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <AuthProvider>
             <Navbar />
-            {children}
-            <Footer />
+            <div className="pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
+              {children}
+              <Footer />
+            </div>
+            <MobileBottomNav />
           </AuthProvider>
           <Analytics />
         </ThemeProvider>

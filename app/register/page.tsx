@@ -151,7 +151,7 @@ export default function RegisterPage() {
           </svg>
         </Link>
 
-        <Card className="border-0 shadow-2xl animate-slide-up">
+        <Card className="border border-[#2eaafd]/20 bg-[#0a1628]/80 backdrop-blur-md shadow-[0_8px_40px_-4px_rgba(46,170,253,0.25)] animate-slide-up">
           <CardHeader className="space-y-1 text-center">
             <CardTitle className="text-3xl font-bold text-balance">Create Account</CardTitle>
             <CardDescription className="text-base">Join Vexed Sports and start your trivia journey</CardDescription>
