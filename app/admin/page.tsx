@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, CalendarDays, FileText, ShieldCheck } from "lucide-react";
+import { ArrowRight, CalendarDays, FileText, ListOrdered, ShieldCheck } from "lucide-react";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -27,6 +27,16 @@ const CARDS = [
     accent: "from-emerald-500/15 to-emerald-600/5 hover:border-emerald-500/40",
     iconBg: "bg-emerald-500/15",
     iconColor: "text-emerald-400",
+  },
+  {
+    href: "/admin/rankings",
+    icon: ListOrdered,
+    title: "Update Position Rankings",
+    description:
+      "Curate the Top 32 ranked players for Quarterbacks, Running Backs, Wide Receivers, and Tight Ends. Search, add, and drag to reorder.",
+    accent: "from-purple-500/15 to-purple-600/5 hover:border-purple-500/40",
+    iconBg: "bg-purple-500/15",
+    iconColor: "text-purple-400",
   },
 ];
 
