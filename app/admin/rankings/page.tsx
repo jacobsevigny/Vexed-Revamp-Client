@@ -7,6 +7,7 @@ import { Loader2, ArrowLeft } from "lucide-react"
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion"
 import { useAuth } from "@/lib/auth-context"
 import { PositionRankingSection, type Position } from "@/components/admin/position-ranking-section"
+import { SeasonLabelField } from "@/components/admin/season-label-field"
 
 const SECTIONS: { position: Position; label: string }[] = [
   { position: "QB", label: "Quarterbacks" },
@@ -53,6 +54,8 @@ function RankingsContent() {
         <p className="mb-8 text-white/50">
           Curate the Top 32 ranked players for each position. Drag to reorder, search to add.
         </p>
+
+        <SeasonLabelField />
 
         <Accordion type="multiple" className="space-y-2">
           {SECTIONS.map(({ position, label }) => (

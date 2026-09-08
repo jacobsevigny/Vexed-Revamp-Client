@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { HeroSection } from "@/components/hero-section"
 import { GamesSection } from "@/components/games-section"
+import { PositionRankingsSection } from "@/components/position-rankings-section"
 import { HomeArticlesSection } from "@/components/articles/home-articles-section"
 
 export const metadata: Metadata = {
@@ -17,6 +18,7 @@ export default function Home() {
     <main className="min-h-screen">
       <HeroSection />
       <GamesSection />
+      <PositionRankingsSection />
       <HomeArticlesSection />
     </main>
   )

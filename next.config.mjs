@@ -34,9 +34,28 @@ const rewrites = async () => {
   ];
 };
 
+// /games and /rankings were removed as standalone pages — their content now
+// lives in the #games and #rankings sections of the home page. Permanently
+// redirect anyone hitting the old URLs (bookmarks, external links) there.
+// Note: /rankings/[position] (quarterback, running-back, wide-receiver,
+// tight-end) are NOT redirected — those pages still exist and stay reachable.
+const redirects = async () => [
+  {
+    source: "/games",
+    destination: "/#games",
+    permanent: true,
+  },
+  {
+    source: "/rankings",
+    destination: "/#rankings",
+    permanent: true,
+  },
+];
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   rewrites,
+  redirects,
   typescript: {
     ignoreBuildErrors: true,
   },

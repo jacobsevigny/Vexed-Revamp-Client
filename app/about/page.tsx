@@ -93,7 +93,7 @@ export default function AboutPage() {
           </div>
 
           <div className="mt-10 pt-8 border-t border-white/20 flex flex-wrap justify-center gap-4 text-sm">
-            <Link href="/games" className="text-white/80 hover:text-white font-medium transition-colors">
+            <Link href="/#games" className="text-white/80 hover:text-white font-medium transition-colors">
               Browse Games
             </Link>
             <span className="text-white/30">·</span>

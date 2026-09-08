@@ -47,6 +47,17 @@ export function Navbar() {
     router.push("/")
   }
 
+  // Games now lives at #games on the home page (the standalone /games page
+  // was removed). When already on the home page, smooth-scroll to it instead
+  // of doing a full navigation; otherwise let the Link do its normal thing —
+  // it'll land on "/" and jump straight to the section.
+  const handleGamesClick = (e: React.MouseEvent) => {
+    if (pathname === "/") {
+      e.preventDefault()
+      document.getElementById("games")?.scrollIntoView({ behavior: "smooth" })
+    }
+  }
+
   return (
     <nav
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
@@ -83,7 +94,7 @@ export function Navbar() {
               Home
               <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-white transition-all group-hover:w-full" />
             </Link>
-            <Link href="/games" className="text-white/90 hover:text-white font-medium transition-colors relative group">
+            <Link href="/#games" onClick={handleGamesClick} className="text-white/90 hover:text-white font-medium transition-colors relative group">
               Games
               <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-white transition-all group-hover:w-full" />
             </Link>

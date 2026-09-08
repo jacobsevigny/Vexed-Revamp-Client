@@ -37,6 +37,7 @@ type SearchResult = {
   playerName: string
   espnId: number | null
   headshotUrl: string | null
+  teamAbbreviation: string | null
 }
 
 type ClientPlayer = {
@@ -44,6 +45,7 @@ type ClientPlayer = {
   playerName: string
   espnId: number | null
   headShotUrl: string | null
+  teamAbbreviation: string | null
 }
 
 function newId() {
@@ -165,11 +167,12 @@ export function PositionRankingSection({ position, label }: { position: Position
         const data = await res.json()
         if (cancelled) return
         setPlayers(
-          (data || []).map((r: { playerName: string; espnId: number | null; headShotUrl: string | null }) => ({
+          (data || []).map((r: { playerName: string; espnId: number | null; headShotUrl: string | null; teamAbbreviation: string | null }) => ({
             clientId: newId(),
             playerName: r.playerName,
             espnId: r.espnId,
             headShotUrl: r.headShotUrl,
+            teamAbbreviation: r.teamAbbreviation ?? null,
           }))
         )
       } catch {
@@ -240,6 +243,7 @@ export function PositionRankingSection({ position, label }: { position: Position
         playerName: selected.playerName,
         espnId: selected.espnId,
         headShotUrl: selected.headshotUrl,
+        teamAbbreviation: selected.teamAbbreviation,
       },
     ])
     setQuery("")
@@ -288,6 +292,7 @@ export function PositionRankingSection({ position, label }: { position: Position
             playerName: p.playerName,
             espnId: p.espnId,
             headShotUrl: p.headShotUrl,
+            teamAbbreviation: p.teamAbbreviation,
           })),
         }),
       })
